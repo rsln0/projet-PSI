@@ -1,0 +1,98 @@
+CREATE TABLE Cuisinier(
+   Id_Cuisinier COUNTER,
+   Nom VARCHAR(50) NOT NULL,
+   Prénom VARCHAR(50) NOT NULL,
+   Email VARCHAR(50) NOT NULL,
+   Téléphone VARCHAR(50) NOT NULL,
+   adresse TEXT NOT NULL,
+   Mot_de_Passe VARCHAR(50) NOT NULL,
+   Nombre_Commandes INT NOT NULL,
+   Note_Moyenne DECIMAL(15,2) NOT NULL,
+   PRIMARY KEY(Id_Cuisinier)
+);
+
+CREATE TABLE Plat(
+   Nom_Plat VARCHAR(50),
+   Regime_Alimentaire VARCHAR(50) NOT NULL,
+   Catégorie VARCHAR(50) NOT NULL CHECK (Catégorie IN('Entrée','Plat','Dessert')),
+   Prix DECIMAL(15,2) NOT NULL,
+   Origine_Culinaire VARCHAR(50) NOT NULL,
+   Ingredients_Principaux TEXT NOT NULL,
+   Photo VARCHAR(50),
+   Quantité INT NOT NULL,
+   PRIMARY KEY(Nom_Plat)
+);
+
+CREATE TABLE Livraison(
+   Id_Livraison COUNTER,
+   Date_de_Livraison DATE NOT NULL,
+   Statut VARCHAR(50) NOT NULL CHECK (Statut IN('En attente','En cours de livraison','Livrée','Annulée')),
+   Départ VARCHAR(50) NOT NULL,
+   Arrivée VARCHAR(50) NOT NULL,
+   Durée_Estimée INT NOT NULL,
+   Distance DECIMAL(15,2) NOT NULL,
+   Station_Départ VARCHAR(50) NOT NULL,
+   Station_Arrivée VARCHAR(50) NOT NULL,
+   Total_Stations TEXT NOT NULL,
+   PRIMARY KEY(Id_Livraison)
+);
+
+CREATE TABLE Client(
+   Id_Client COUNTER,
+   Nom VARCHAR(50) NOT NULL,
+   Prénom VARCHAR(50) NOT NULL,
+   Email VARCHAR(100) NOT NULL,
+   Téléphone VARCHAR(50) NOT NULL,
+   Adresse TEXT NOT NULL,
+   Mot_de_Passe VARCHAR(255),
+   Total_Achats DECIMAL(15,2) NOT NULL,
+   Entreprise__ LOGICAL NOT NULL,
+   Nom_de_Entreprise VARCHAR(50),
+   Id_Livraison INT NOT NULL,
+   PRIMARY KEY(Id_Client),
+   FOREIGN KEY(Id_Livraison) REFERENCES Livraison(Id_Livraison)
+);
+
+CREATE TABLE Commande(
+   Id_Commande COUNTER,
+   Date_Commande DATE NOT NULL,
+   Statut VARCHAR(50) NOT NULL CHECK (Statut IN ('Annulée','En cours de livraison','Livrée')),
+   Montant_Total DECIMAL(15,2) NOT NULL,
+   Nom_Plat VARCHAR(50) NOT NULL,
+   Id_Client INT NOT NULL,
+   PRIMARY KEY(Id_Commande),
+   FOREIGN KEY(Nom_Plat) REFERENCES Plat(Nom_Plat),
+   FOREIGN KEY(Id_Client) REFERENCES Client(Id_Client)
+);
+
+CREATE TABLE Est(
+   Id_Client INT,
+   Id_Cuisinier INT,
+   PRIMARY KEY(Id_Client, Id_Cuisinier),
+   FOREIGN KEY(Id_Client) REFERENCES Client(Id_Client),
+   FOREIGN KEY(Id_Cuisinier) REFERENCES Cuisinier(Id_Cuisinier)
+);
+
+CREATE TABLE Prépare(
+   Id_Cuisinier INT,
+   Nom_Plat VARCHAR(50),
+   PRIMARY KEY(Id_Cuisinier, Nom_Plat),
+   FOREIGN KEY(Id_Cuisinier) REFERENCES Cuisinier(Id_Cuisinier),
+   FOREIGN KEY(Nom_Plat) REFERENCES Plat(Nom_Plat)
+);
+
+CREATE TABLE Envoi(
+   Id_Commande INT,
+   Id_Livraison INT,
+   PRIMARY KEY(Id_Commande, Id_Livraison),
+   FOREIGN KEY(Id_Commande) REFERENCES Commande(Id_Commande),
+   FOREIGN KEY(Id_Livraison) REFERENCES Livraison(Id_Livraison)
+);
+
+CREATE TABLE Livre(
+   Id_Cuisinier INT,
+   Id_Livraison INT,
+   PRIMARY KEY(Id_Cuisinier, Id_Livraison),
+   FOREIGN KEY(Id_Cuisinier) REFERENCES Cuisinier(Id_Cuisinier),
+   FOREIGN KEY(Id_Livraison) REFERENCES Livraison(Id_Livraison)
+);
