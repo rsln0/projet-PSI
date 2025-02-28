@@ -52,3 +52,25 @@ CREATE TABLE Details_Commande (
 
 CREATE INDEX idx_client_email ON Client(email);
 CREATE INDEX idx_cuisinier_email ON Cuisinier(email);
+
+INSERT INTO Client (nom, prenom, adresse, telephone, email) VALUES
+('Dupont', 'Jean', '12 Rue de Paris, 75001 Paris', '0601020304', 'jean.dupont@email.com'),
+('Martin', 'Sophie', '24 Boulevard Saint-Michel, 75005 Paris', '0611223344', 'sophie.martin@email.com');
+
+INSERT INTO Cuisinier (nom, prenom, adresse, telephone, email) VALUES
+('Bernard', 'Paul', '45 Avenue de la République, 75011 Paris', '0655667788', 'paul.bernard@email.com');
+
+INSERT INTO Plat (id_cuisinier, nom_plat, type_plat, prix, date_fabrication, date_peremption) VALUES
+(1, 'Lasagnes Maison', 'Plat principal', 12.50, '2025-02-25', '2025-03-02');
+
+INSERT INTO Commande (id_client, id_cuisinier, date_commande, prix_total) VALUES
+(1, 1, '2025-02-26', 25.00);
+
+INSERT INTO Details_Commande (id_commande, id_plat, quantite) VALUES
+(1, 1, 2);
+
+SELECT * FROM Client;
+SELECT * FROM Cuisinier;
+SELECT * FROM Plat;
+SELECT * FROM Commande;
+SELECT * FROM Details_Commande;
