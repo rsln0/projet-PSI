@@ -1,12 +1,12 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace LivInParisGraph
 {
-    public class Noeud
+    class Noeud
     {
-        public string Nom { get; set; }
-        public List<Lien> Liens { get; set; }
+        public string Nom;
+        public List<Lien> Liens;
 
         public Noeud(string nom)
         {
@@ -15,10 +15,10 @@ namespace LivInParisGraph
         }
     }
 
-    public class Lien
+    class Lien
     {
-        public Noeud Cible { get; set; }
-        public int Poids { get; set; }
+        public Noeud Cible;
+        public int Poids;
 
         public Lien(Noeud cible, int poids)
         {
@@ -27,59 +27,94 @@ namespace LivInParisGraph
         }
     }
 
-    public class Graphe
+    class Graphe
     {
-        private Dictionary<string, Noeud> noeuds;
-
-        public Graphe()
-        {
-            noeuds = new Dictionary<string, Noeud>();
-        }
+        private List<Noeud> noeuds = new List<Noeud>();
 
         public void AjouterNoeud(string nom)
         {
-            if (!noeuds.ContainsKey(nom))
-                noeuds[nom] = new Noeud(nom);
+            // Vérifie si le noeud existe déjà avec une boucle simple
+            foreach (Noeud n in noeuds)
+            {
+                if (n.Nom == nom)
+                {
+                    return; // On ne l'ajoute pas s'il existe déjà
+                }
+            }
+            noeuds.Add(new Noeud(nom));
         }
 
         public void AjouterLien(string source, string cible, int poids)
         {
-            if (noeuds.ContainsKey(source) && noeuds.ContainsKey(cible))
+            Noeud noeudSource = null;
+            Noeud noeudCible = null;
+
+            // Recherche des noeuds dans la liste
+            foreach (Noeud n in noeuds)
             {
-                noeuds[source].Liens.Add(new Lien(noeuds[cible], poids));
+                if (n.Nom == source)
+                    noeudSource = n;
+                if (n.Nom == cible)
+                    noeudCible = n;
+            }
+
+            // Ajoute le lien si les deux nœuds existent
+            if (noeudSource != null && noeudCible != null)
+            {
+                noeudSource.Liens.Add(new Lien(noeudCible, poids));
             }
             else
             {
-                Console.WriteLine("Erreur : Un des nœuds spécifiés n'existe pas.");
+                Console.WriteLine("Erreur : Un des nœuds n'existe pas.");
             }
         }
 
-        // Parcours en largeur (BFS) en utilisant une List pour simuler à la fois la file d'attente et l'ensemble des visites
         public void ParcoursLargeur(string depart)
         {
-            if (!noeuds.ContainsKey(depart))
+            Noeud noeudDepart = null;
+
+            // Recherche du noeud de départ
+            foreach (Noeud n in noeuds)
             {
-                Console.WriteLine($"Le nœud '{depart}' n'existe pas dans le graphe.");
+                if (n.Nom == depart)
+                {
+                    noeudDepart = n;
+                    break;
+                }
+            }
+
+            if (noeudDepart == null)
+            {
+                Console.WriteLine("Le nœud de départ n'existe pas.");
                 return;
             }
 
-            List<Noeud> file = new List<Noeud>();         // Simule la file d'attente (FIFO)
-            List<string> visites = new List<string>();      // Simule un ensemble pour stocker les nœuds visités
+            List<Noeud> file = new List<Noeud>(); // Simule la file d'attente
+            List<string> visites = new List<string>(); // Simule la liste des noeuds visités
 
-            file.Add(noeuds[depart]);
-            visites.Add(depart);
+            file.Add(noeudDepart);
+            visites.Add(noeudDepart.Nom);
 
             while (file.Count > 0)
             {
-                // Récupérer et retirer le premier élément de la "file"
                 Noeud courant = file[0];
                 file.RemoveAt(0);
-                Console.WriteLine($"Visite : {courant.Nom}");
+                Console.WriteLine("Visite : " + courant.Nom);
 
-                foreach (var lien in courant.Liens)
+                foreach (Lien lien in courant.Liens)
                 {
-                    // Vérifier dans la List si le nœud a déjà été visité
-                    if (!visites.Contains(lien.Cible.Nom))
+                    // Vérifie si le nœud a déjà été visité
+                    bool dejaVisite = false;
+                    foreach (string v in visites)
+                    {
+                        if (v == lien.Cible.Nom)
+                        {
+                            dejaVisite = true;
+                            break;
+                        }
+                    }
+
+                    if (!dejaVisite)
                     {
                         visites.Add(lien.Cible.Nom);
                         file.Add(lien.Cible);
@@ -97,10 +132,11 @@ namespace LivInParisGraph
             g.AjouterNoeud("Client");
             g.AjouterNoeud("Cuisinier");
             g.AjouterNoeud("Commande");
+
             g.AjouterLien("Client", "Commande", 1);
             g.AjouterLien("Commande", "Cuisinier", 1);
 
-            Console.WriteLine("Parcours en largeur depuis 'Client':");
+            Console.WriteLine("Parcours en largeur depuis 'Client' :");
             g.ParcoursLargeur("Client");
 
             Console.WriteLine("Appuyez sur une touche pour fermer...");
