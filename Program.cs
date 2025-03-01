@@ -20,12 +20,10 @@ namespace LivInParisGraph
     public class Lien
     {
         public Noeud Cible { get; set; }
-        public int Poids { get; set; }
 
-        public Lien(Noeud cible, int poids)
+        public Lien(Noeud cible)
         {
             Cible = cible;
-            Poids = poids;
         }
     }
 
@@ -44,11 +42,12 @@ namespace LivInParisGraph
                 Noeuds[nom] = new Noeud(nom);
         }
 
-        public void AjouterLien(string source, string cible, int poids)
+        public void AjouterLien(string source, string cible)
         {
             if (Noeuds.ContainsKey(source) && Noeuds.ContainsKey(cible))
             {
-                Noeuds[source].Liens.Add(new Lien(Noeuds[cible], poids));
+                Noeuds[source].Liens.Add(new Lien(Noeuds[cible]));
+                Noeuds[cible].Liens.Add(new Lien(Noeuds[source]));
             }
             else
             {
@@ -56,83 +55,13 @@ namespace LivInParisGraph
             }
         }
 
-        // Parcours en largeur (BFS)
-        public void ParcoursLargeur(string depart)
-        {
-            if (!Noeuds.ContainsKey(depart))
-            {
-                Console.WriteLine($"Le nœud '{depart}' n'existe pas dans le graphe.");
-                return;
-            }
-
-            List<Noeud> file = new List<Noeud>();         // File d'attente (FIFO)
-            List<string> visites = new List<string>();      // Liste des nœuds visités
-
-            file.Add(Noeuds[depart]);
-            visites.Add(depart);
-
-            while (file.Count > 0)
-            {
-                Noeud courant = file[0];
-                file.RemoveAt(0);
-                Console.Write(courant.Nom + " ");
-
-                foreach (var lien in courant.Liens)
-                {
-                    if (!visites.Contains(lien.Cible.Nom))
-                    {
-                        visites.Add(lien.Cible.Nom);
-                        file.Add(lien.Cible);
-                    }
-                }
-            }
-            Console.WriteLine();
-        }
-
-        // Parcours en profondeur (DFS)
-        public void ParcoursProfondeur(string depart)
-        {
-            if (!Noeuds.ContainsKey(depart))
-            {
-                Console.WriteLine($"Le nœud '{depart}' n'existe pas dans le graphe.");
-                return;
-            }
-
-            HashSet<string> visites = new HashSet<string>();
-            DFS(Noeuds[depart], visites);
-            Console.WriteLine();
-        }
-
-        private void DFS(Noeud courant, HashSet<string> visites)
-        {
-            Console.Write(courant.Nom + " ");
-            visites.Add(courant.Nom);
-
-            foreach (var lien in courant.Liens)
-            {
-                if (!visites.Contains(lien.Cible.Nom))
-                {
-                    DFS(lien.Cible, visites);
-                }
-            }
-        }
-
-        // Affichage de la liste d'adjacence
         public void AfficherListeAdjacence()
         {
-            Console.WriteLine("Liste d'adjacence:");
-            // Tri des nœuds selon leur nom (numérique si possible)
-            var sortedKeys = Noeuds.Keys.ToList();
-            sortedKeys.Sort((a, b) =>
+            Console.WriteLine("Liste d'adjacence :");
+            foreach (var noeud in Noeuds.OrderBy(n => int.Parse(n.Key)))
             {
-                if (int.TryParse(a, out int ia) && int.TryParse(b, out int ib))
-                    return ia.CompareTo(ib);
-                return a.CompareTo(b);
-            });
-            foreach (var key in sortedKeys)
-            {
-                Console.Write(key + " : ");
-                foreach (var lien in Noeuds[key].Liens)
+                Console.Write(noeud.Key + " -> ");
+                foreach (var lien in noeud.Value.Liens)
                 {
                     Console.Write(lien.Cible.Nom + " ");
                 }
@@ -140,59 +69,97 @@ namespace LivInParisGraph
             }
         }
 
-        // Affichage de la matrice d'adjacence
         public void AfficherMatriceAdjacence()
         {
-            Console.WriteLine("Matrice d'adjacence:");
-            var sortedKeys = Noeuds.Keys.ToList();
-            sortedKeys.Sort((a, b) =>
-            {
-                if (int.TryParse(a, out int ia) && int.TryParse(b, out int ib))
-                    return ia.CompareTo(ib);
-                return a.CompareTo(b);
-            });
-            int n = sortedKeys.Count;
+            Console.WriteLine("\nMatrice d'adjacence :");
 
-            // Création d'une correspondance entre nœuds et indices
-            Dictionary<string, int> indexMap = new Dictionary<string, int>();
-            for (int i = 0; i < n; i++)
-            {
-                indexMap[sortedKeys[i]] = i;
-            }
+            var noeudsTries = Noeuds.Keys.Select(int.Parse).OrderBy(x => x).Select(x => x.ToString()).ToList();
 
-            // Initialisation de la matrice
-            int[,] matrix = new int[n, n];
-            for (int i = 0; i < n; i++)
-                for (int j = 0; j < n; j++)
-                    matrix[i, j] = 0;
-
-            // Remplissage de la matrice
-            foreach (var key in sortedKeys)
+            Console.Write("    ");
+            foreach (var nom in noeudsTries)
             {
-                int i = indexMap[key];
-                foreach (var lien in Noeuds[key].Liens)
-                {
-                    int j = indexMap[lien.Cible.Nom];
-                    matrix[i, j] = lien.Poids;
-                }
-            }
-
-            // Affichage de la matrice
-            Console.Write("     ");
-            foreach (var key in sortedKeys)
-            {
-                Console.Write(key.PadLeft(4));
+                Console.Write(nom.PadLeft(3) + " ");
             }
             Console.WriteLine();
-            for (int i = 0; i < n; i++)
+
+            foreach (var ligne in noeudsTries)
             {
-                Console.Write(sortedKeys[i].PadLeft(4));
-                for (int j = 0; j < n; j++)
+                Console.Write(ligne.PadLeft(3) + " ");
+                foreach (var colonne in noeudsTries)
                 {
-                    Console.Write(matrix[i, j].ToString().PadLeft(4));
+                    if (Noeuds[ligne].Liens.Any(l => l.Cible.Nom == colonne))
+                        Console.Write(" 1 ");
+                    else
+                        Console.Write(" 0 ");
                 }
                 Console.WriteLine();
             }
+        }
+
+        public void ParcoursLargeur(string depart)
+        {
+            if (!Noeuds.ContainsKey(depart))
+            {
+                Console.WriteLine($"Le nœud '{depart}' n'existe pas.");
+                return;
+            }
+
+            Queue<Noeud> file = new Queue<Noeud>();
+            HashSet<string> visites = new HashSet<string>();
+
+            file.Enqueue(Noeuds[depart]);
+            visites.Add(depart);
+
+            Console.WriteLine("Parcours en largeur :");
+            while (file.Count > 0)
+            {
+                Noeud courant = file.Dequeue();
+                Console.Write(courant.Nom + " ");
+
+                foreach (var lien in courant.Liens)
+                {
+                    if (!visites.Contains(lien.Cible.Nom))
+                    {
+                        visites.Add(lien.Cible.Nom);
+                        file.Enqueue(lien.Cible);
+                    }
+                }
+            }
+            Console.WriteLine();
+        }
+
+        public void ParcoursProfondeur(string depart)
+        {
+            if (!Noeuds.ContainsKey(depart))
+            {
+                Console.WriteLine($"Le nœud '{depart}' n'existe pas.");
+                return;
+            }
+
+            Stack<Noeud> pile = new Stack<Noeud>();
+            HashSet<string> visites = new HashSet<string>();
+
+            pile.Push(Noeuds[depart]);
+
+            Console.WriteLine("Parcours en profondeur :");
+            while (pile.Count > 0)
+            {
+                Noeud courant = pile.Pop();
+                if (!visites.Contains(courant.Nom))
+                {
+                    visites.Add(courant.Nom);
+                    Console.Write(courant.Nom + " ");
+
+                    foreach (var lien in courant.Liens)
+                    {
+                        if (!visites.Contains(lien.Cible.Nom))
+                        {
+                            pile.Push(lien.Cible);
+                        }
+                    }
+                }
+            }
+            Console.WriteLine();
         }
     }
 
@@ -201,64 +168,62 @@ namespace LivInParisGraph
         static void Main()
         {
             string mtxFilePath = "soc-karate.mtx";
-
             Graphe g = new Graphe();
+            List<(int, int)> liens = new List<(int, int)>();
 
-            // Lecture du fichier .mtx et instanciation du graphe
-            // Chaque ligne (non commentée) contient deux nombres représentant une relation réciproque.
             using (StreamReader sr = new StreamReader(mtxFilePath))
             {
-                string line;
+                string? line;
                 while ((line = sr.ReadLine()) != null)
                 {
                     if (line.StartsWith("%") || string.IsNullOrWhiteSpace(line))
                         continue;
 
-                    string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    string[] parts = line.Split(' ');
                     if (parts.Length == 2)
                     {
                         int source = int.Parse(parts[0]);
                         int cible = int.Parse(parts[1]);
-                        // Ajouter les nœuds s'ils n'existent pas déjà
                         g.AjouterNoeud(source.ToString());
                         g.AjouterNoeud(cible.ToString());
-                        // Ajout du lien dans les deux sens pour refléter la réciprocité
-                        g.AjouterLien(source.ToString(), cible.ToString(), 1);
-                        g.AjouterLien(cible.ToString(), source.ToString(), 1);
+                        liens.Add((source, cible));
                     }
                 }
             }
 
-            // Choix du mode de représentation
-            Console.WriteLine("Choisissez le mode de représentation :");
-            Console.WriteLine("1 : Liste d'adjacence");
-            Console.WriteLine("2 : Matrice d'adjacence");
+            foreach (var (source, cible) in liens)
+            {
+                g.AjouterLien(source.ToString(), cible.ToString());
+            }
+
+            Console.WriteLine("Comment voulez-vous représenter le graphe ?");
+            Console.WriteLine("1 - Liste d'adjacence");
+            Console.WriteLine("2 - Matrice d'adjacence");
             Console.Write("Votre choix : ");
-            string choixMode = Console.ReadLine();
+            string choixAffichage = Console.ReadLine();
 
-            if (choixMode == "1")
-            {
+            if (choixAffichage == "1")
                 g.AfficherListeAdjacence();
-            }
-            else if (choixMode == "2")
-            {
+            else if (choixAffichage == "2")
                 g.AfficherMatriceAdjacence();
-            }
             else
-            {
-                Console.WriteLine("Mode non reconnu. Affichage par défaut (Liste d'adjacence) :");
-                g.AfficherListeAdjacence();
-            }
+                Console.WriteLine("Choix invalide, affichage par défaut en liste d'adjacence.");
 
-            // Demande du sommet de départ pour les parcours
-            Console.Write("Entrez le sommet de départ pour le parcours : ");
+            Console.WriteLine("\nChoisissez un type de parcours :");
+            Console.WriteLine("1 - Parcours en largeur");
+            Console.WriteLine("2 - Parcours en profondeur");
+            Console.Write("Votre choix : ");
+            string choix = Console.ReadLine();
+
+            Console.Write("Entrez le nœud de départ : ");
             string depart = Console.ReadLine();
 
-            Console.WriteLine("Parcours en largeur (BFS) :");
-            g.ParcoursLargeur(depart);
-
-            Console.WriteLine("Parcours en profondeur (DFS) :");
-            g.ParcoursProfondeur(depart);
+            if (choix == "1")
+                g.ParcoursLargeur(depart);
+            else if (choix == "2")
+                g.ParcoursProfondeur(depart);
+            else
+                Console.WriteLine("Choix invalide.");
 
             Console.WriteLine("Appuyez sur une touche pour fermer...");
             Console.ReadKey();
