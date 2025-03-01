@@ -4,6 +4,14 @@ On observe que celui ci nous renvoie un résultat parcourant les 34 sommets. On 
 Pour les cycles, on sait que un graphe connexe est sans cycle si son nombre d'arrête est égal au nombre de sommet - 1.
 Or dans le fichier, on observe qu'il contient 78 relations entre les sommets, donc le graphe contient 78 arrêtes ce qui prouve qu'il contient des cycles.
 
+L'ordre du graphe est 34, puisqu'il contient 34 sommets, et sa taille de 78 car il contient 78 arrêtes.
+
+Le graphe est non orienté car les relations sont à double sens.
+
+Le graphe est non pondéré.
+
+Il s'agit d'un graphe simple, sans boucles ni arêtes multiples.
+
 
 Voici deux prompts qu'on a utilisés :
 
