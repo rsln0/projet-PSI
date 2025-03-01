@@ -1,15 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 
 namespace GraphEtudiantSimple
 {
-    /// Classe représentant un sommet du graphe
+    /// Classe représentant un sommet
     public class Sommet
     {
+        /// Nom du sommet
         public string nom;
+        /// Liste des connexions du sommet
         public List<Connexion> connexions;
 
+        /// Constructeur
         public Sommet(string nomSommet)
         {
             nom = nomSommet;
@@ -17,140 +22,90 @@ namespace GraphEtudiantSimple
         }
     }
 
-    /// Classe représentant une connexion entre deux sommets
+    /// Classe pour relier deux sommets
     public class Connexion
     {
+        /// Sommet cible de la connexion
         public Sommet cible;
 
+        /// Constructeur
         public Connexion(Sommet sommetCible)
         {
             cible = sommetCible;
         }
     }
 
-    /// Classe représentant le graphe
+    /// Classe du graphe
     public class Graphe
     {
+        /// Dictionnaire des sommets
         public Dictionary<string, Sommet> sommets;
 
+        /// Constructeur
         public Graphe()
         {
             sommets = new Dictionary<string, Sommet>();
         }
 
+        /// Ajoute un sommet
         public void AjouterSommet(string nomSommet)
         {
             if (!sommets.ContainsKey(nomSommet))
-            {
                 sommets[nomSommet] = new Sommet(nomSommet);
-            }
         }
 
+        /// Ajoute une connexion dans les deux sens
         public void AjouterConnexion(string source, string destination)
         {
             if (sommets.ContainsKey(source) && sommets.ContainsKey(destination))
             {
-                /// Ajout de la connexion dans les deux sens (graphe non orienté)
                 sommets[source].connexions.Add(new Connexion(sommets[destination]));
                 sommets[destination].connexions.Add(new Connexion(sommets[source]));
             }
             else
-            {
                 Console.WriteLine("Erreur : un des sommets n'existe pas.");
-            }
         }
 
+        /// Affiche la liste d'adjacence
         public void AfficherListe()
         {
             Console.WriteLine("Liste d'adjacence :");
-            /// Récupérer les noms des sommets dans liste
-            List<string> liste = new List<string>();
-            foreach (string cle in sommets.Keys)
+            List<string> liste = new List<string>(sommets.Keys);
+            liste.Sort((a, b) => int.Parse(a).CompareTo(int.Parse(b)));
+            foreach (string s in liste)
             {
-                liste.Add(cle);
-            }
-            /// Tri  
-            for (int i = 0; i < liste.Count - 1; i++)
-            {
-                for (int j = i + 1; j < liste.Count; j++)
-                {
-                    if (int.Parse(liste[i]) > int.Parse(liste[j]))
-                    {
-                        string a = liste[i];
-                        liste[i] = liste[j];
-                        liste[j] = a;
-                    }
-                }
-            }
-
-            /// Affichage de la liste d'adjacence
-            for (int i = 0; i < liste.Count; i++)
-            {
-                string nomSommet = liste[i];
-                Console.Write(nomSommet + " -> ");
-                for (int j = 0; j < sommets[nomSommet].connexions.Count; j++)
-                {
-                    Console.Write(sommets[nomSommet].connexions[j].cible.nom + " ");
-                }
+                Console.Write(s + " -> ");
+                foreach (var conn in sommets[s].connexions)
+                    Console.Write(conn.cible.nom + " ");
                 Console.WriteLine();
             }
         }
 
+        /// Affiche la matrice d'adjacence
         public void AfficherMatrice()
         {
             Console.WriteLine("\nMatrice d'adjacence :");
-            /// Récupérer les noms des sommets dans une liste
-            List<string> liste = new List<string>();
-            foreach (string cle in sommets.Keys)
-            {
-                liste.Add(cle);
-            }
-            /// Tri 
-            for (int i = 0; i < liste.Count - 1; i++)
-            {
-                for (int j = i + 1; j < liste.Count; j++)
-                {
-                    if (int.Parse(liste[i]) > int.Parse(liste[j]))
-                    {
-                        string temp = liste[i];
-                        liste[i] = liste[j];
-                        liste[j] = temp;
-                    }
-                }
-            }
+            List<string> liste = new List<string>(sommets.Keys);
+            liste.Sort((a, b) => int.Parse(a).CompareTo(int.Parse(b)));
 
-            /// Affichage de la matrice
             Console.Write("     ");
-            for (int i = 0; i < liste.Count; i++)
-            {
-                Console.Write(liste[i].PadLeft(5));
-            }
+            foreach (string s in liste)
+                Console.Write(s.PadLeft(5));
             Console.WriteLine();
 
-            /// Affichage de chaque ligne de la matrice
-            for (int i = 0; i < liste.Count; i++)
+            foreach (string s in liste)
             {
-                Console.Write(liste[i].PadLeft(5));
-                for (int j = 0; j < liste.Count; j++)
+                Console.Write(s.PadLeft(5));
+                foreach (string t in liste)
                 {
-                    bool trouve = false;
-                    for (int k = 0; k < sommets[liste[i]].connexions.Count; k++)
-                    {
-                        if (sommets[liste[i]].connexions[k].cible.nom == liste[j])
-                        {
-                            trouve = true;
-                            break;
-                        }
-                    }
-                    if (trouve)
-                        Console.Write("    1");
-                    else
-                        Console.Write("    0");
+                    bool trouve = sommets[s].connexions.Exists(c => c.cible.nom == t);
+                    Console.Write(trouve ? "    1" : "    0");
                 }
                 Console.WriteLine();
             }
         }
 
+        /// Parcours en largeur depuis un sommet
         public void ParcourLargeur(string depart)
         {
             if (!sommets.ContainsKey(depart))
@@ -158,32 +113,29 @@ namespace GraphEtudiantSimple
                 Console.WriteLine("Le sommet " + depart + " n'existe pas.");
                 return;
             }
-
             Queue<Sommet> file = new Queue<Sommet>();
             List<string> vus = new List<string>();
 
             file.Enqueue(sommets[depart]);
             vus.Add(depart);
-
             Console.WriteLine("Parcours en largeur :");
             while (file.Count > 0)
             {
                 Sommet actuel = file.Dequeue();
                 Console.Write(actuel.nom + " ");
-
-                for (int i = 0; i < actuel.connexions.Count; i++)
+                foreach (var conn in actuel.connexions)
                 {
-                    string nomCible = actuel.connexions[i].cible.nom;
-                    if (!vus.Contains(nomCible))
+                    if (!vus.Contains(conn.cible.nom))
                     {
-                        vus.Add(nomCible);
-                        file.Enqueue(actuel.connexions[i].cible);
+                        vus.Add(conn.cible.nom);
+                        file.Enqueue(conn.cible);
                     }
                 }
             }
             Console.WriteLine();
         }
 
+        /// Parcours en profondeur depuis un sommet
         public void ParcourProfondeur(string depart)
         {
             if (!sommets.ContainsKey(depart))
@@ -191,12 +143,10 @@ namespace GraphEtudiantSimple
                 Console.WriteLine("Le sommet " + depart + " n'existe pas.");
                 return;
             }
-
             Stack<Sommet> pile = new Stack<Sommet>();
             List<string> vus = new List<string>();
 
             pile.Push(sommets[depart]);
-
             Console.WriteLine("Parcours en profondeur :");
             while (pile.Count > 0)
             {
@@ -205,20 +155,15 @@ namespace GraphEtudiantSimple
                 {
                     vus.Add(actuel.nom);
                     Console.Write(actuel.nom + " ");
-
-                    for (int i = 0; i < actuel.connexions.Count; i++)
-                    {
-                        string nomCible = actuel.connexions[i].cible.nom;
-                        if (!vus.Contains(nomCible))
-                        {
-                            pile.Push(actuel.connexions[i].cible);
-                        }
-                    }
+                    foreach (var conn in actuel.connexions)
+                        if (!vus.Contains(conn.cible.nom))
+                            pile.Push(conn.cible);
                 }
             }
             Console.WriteLine();
         }
-        
+
+        /// Crée une image du graphe et l'enregistre
         public void VisualiserGraphe(string fichier)
         {
             int largeur = 800, hauteur = 600;
@@ -229,32 +174,26 @@ namespace GraphEtudiantSimple
             Brush brush = Brushes.Black;
             Random rnd = new Random();
             Dictionary<string, Point> positions = new Dictionary<string, Point>();
-            
-            foreach (var sommet in sommets.Keys)
+
+            foreach (var s in sommets.Keys)
+                positions[s] = new Point(rnd.Next(50, largeur - 50), rnd.Next(50, hauteur - 50));
+
+            foreach (var s in sommets.Values)
+                foreach (var conn in s.connexions)
+                    graphics.DrawLine(Pens.Black, positions[s.nom], positions[conn.cible.nom]);
+
+            foreach (var s in sommets.Values)
             {
-                positions[sommet] = new Point(rnd.Next(50, largeur - 50), rnd.Next(50, hauteur - 50));
-            }
-            
-            foreach (var sommet in sommets.Values)
-            {
-                foreach (var connexion in sommet.connexions)
-                {
-                    graphics.DrawLine(Pens.Black, positions[sommet.nom], positions[connexion.cible.nom]);
-                }
-            }
-            
-            foreach (var sommet in sommets.Values)
-            {
-                Point pos = positions[sommet.nom];
+                Point pos = positions[s.nom];
                 graphics.FillEllipse(Brushes.Blue, pos.X - 10, pos.Y - 10, 20, 20);
-                graphics.DrawString(sommet.nom, font, brush, pos.X + 5, pos.Y + 5);
+                graphics.DrawString(s.nom, font, brush, pos.X + 5, pos.Y + 5);
             }
-            
             bitmap.Save(fichier, ImageFormat.Png);
             Console.WriteLine($"Graphe visualisé et enregistré sous {fichier}");
         }
     }
 
+    /// Programme principal
     class Program
     {
         static void Main()
@@ -263,15 +202,12 @@ namespace GraphEtudiantSimple
             Graphe monGraphe = new Graphe();
             List<Tuple<int, int>> listeConnexions = new List<Tuple<int, int>>();
 
-            /// Lecture du fichier
             StreamReader fichier = new StreamReader(cheminFichier);
             string ligne;
             while ((ligne = fichier.ReadLine()) != null)
             {
                 if (ligne.StartsWith("%") || ligne.Trim() == "")
-                {
                     continue;
-                }
                 string[] morceaux = ligne.Split(' ');
                 if (morceaux.Length == 2)
                 {
@@ -284,13 +220,10 @@ namespace GraphEtudiantSimple
             }
             fichier.Close();
 
-            /// Ajout des connexions
-            for (int i = 0; i < listeConnexions.Count; i++)
-            {
-                monGraphe.AjouterConnexion(listeConnexions[i].Item1.ToString(), listeConnexions[i].Item2.ToString());
-            }
+            foreach (var tuple in listeConnexions)
+                monGraphe.AjouterConnexion(tuple.Item1.ToString(), tuple.Item2.ToString());
 
-            Console.WriteLine("Comment voulez-vous afficher le graphe ?");
+            Console.WriteLine("Comment afficher le graphe ?");
             Console.WriteLine("1 - Liste d'adjacence");
             Console.WriteLine("2 - Matrice d'adjacence");
             Console.Write("Votre choix : ");
@@ -300,14 +233,14 @@ namespace GraphEtudiantSimple
             else if (choixAffichage == "2")
                 monGraphe.AfficherMatrice();
             else
-                Console.WriteLine("Choix invalide, affichage par défaut en liste d'adjacence.");
+                Console.WriteLine("Choix invalide, affichage en liste.");
 
-            Console.WriteLine("\nQuel type de parcours souhaitez-vous ?");
+            Console.WriteLine("\nChoisissez le type de parcours :");
             Console.WriteLine("1 - Parcours en largeur");
             Console.WriteLine("2 - Parcours en profondeur");
             Console.Write("Votre choix : ");
             string choixParcours = Console.ReadLine();
-            Console.Write("Entrez le sommet de départ : ");
+            Console.Write("Sommet de départ : ");
             string depart = Console.ReadLine();
             if (choixParcours == "1")
                 monGraphe.ParcourLargeur(depart);
@@ -317,7 +250,6 @@ namespace GraphEtudiantSimple
                 Console.WriteLine("Choix invalide.");
 
             monGraphe.VisualiserGraphe("graphe.png");
-            
             Console.WriteLine("Appuyez sur une touche pour fermer...");
             Console.ReadKey();
         }
