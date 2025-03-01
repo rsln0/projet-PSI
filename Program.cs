@@ -9,12 +9,10 @@ namespace GraphEtudiantSimple
     /// Classe représentant un sommet
     public class Sommet
     {
-        /// Nom du sommet
         public string nom;
         /// Liste des connexions du sommet
         public List<Connexion> connexions;
 
-        /// Constructeur
         public Sommet(string nomSommet)
         {
             nom = nomSommet;
@@ -25,10 +23,8 @@ namespace GraphEtudiantSimple
     /// Classe pour relier deux sommets
     public class Connexion
     {
-        /// Sommet cible de la connexion
         public Sommet cible;
 
-        /// Constructeur
         public Connexion(Sommet sommetCible)
         {
             cible = sommetCible;
@@ -38,10 +34,8 @@ namespace GraphEtudiantSimple
     /// Classe du graphe
     public class Graphe
     {
-        /// Dictionnaire des sommets
         public Dictionary<string, Sommet> sommets;
-
-        /// Constructeur
+        
         public Graphe()
         {
             sommets = new Dictionary<string, Sommet>();
