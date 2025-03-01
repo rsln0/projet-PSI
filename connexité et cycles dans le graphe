@@ -1,1 +1,5 @@
+Pour la connexité du cycle, on peut observer le résultat du parcours en largeur lorsqu'il est exécuté par l'algorythme.
+On observe que celui ci nous renvoie un résultat parcourant les 34 sommets. On en déduit que le graphe est bien connexe
 
+Pour les cycles, on sait que un graphe connexe est sans cycle si son nombre d'arrête est égal au nombre de sommet - 1.
+Or dans le fichier, on observe qu'il contient 78 relations entre les sommets, donc le graphe contient 78 arrêtes ce qui prouve qu'il contient des cycles.
