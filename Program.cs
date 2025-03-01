@@ -1,160 +1,217 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
-namespace LivInParisGraph
+namespace GraphEtudiantSimple
 {
-    public class Noeud
+    /// Classe représentant un sommet du graphe
+    public class Sommet
     {
-        public string Nom { get; set; }
-        public List<Lien> Liens { get; set; }
+        public string nom;
+        public List<Connexion> connexions;
 
-        public Noeud(string nom)
+        public Sommet(string nomSommet)
         {
-            Nom = nom;
-            Liens = new List<Lien>();
+            nom = nomSommet;
+            connexions = new List<Connexion>();
         }
     }
 
-    public class Lien
+    /// Classe représentant une connexion entre deux sommets
+    public class Connexion
     {
-        public Noeud Cible { get; set; }
+        public Sommet cible;
 
-        public Lien(Noeud cible)
+        public Connexion(Sommet sommetCible)
         {
-            Cible = cible;
+            cible = sommetCible;
         }
     }
 
+    /// Classe représentant le graphe
     public class Graphe
     {
-        public Dictionary<string, Noeud> Noeuds { get; private set; }
+        public Dictionary<string, Sommet> sommets;
 
         public Graphe()
         {
-            Noeuds = new Dictionary<string, Noeud>();
+            sommets = new Dictionary<string, Sommet>();
         }
 
-        public void AjouterNoeud(string nom)
+        public void AjouterSommet(string nomSommet)
         {
-            if (!Noeuds.ContainsKey(nom))
-                Noeuds[nom] = new Noeud(nom);
-        }
-
-        public void AjouterLien(string source, string cible)
-        {
-            if (Noeuds.ContainsKey(source) && Noeuds.ContainsKey(cible))
+            if (!sommets.ContainsKey(nomSommet))
             {
-                Noeuds[source].Liens.Add(new Lien(Noeuds[cible]));
-                Noeuds[cible].Liens.Add(new Lien(Noeuds[source]));
+                sommets[nomSommet] = new Sommet(nomSommet);
+            }
+        }
+
+        public void AjouterConnexion(string source, string destination)
+        {
+            if (sommets.ContainsKey(source) && sommets.ContainsKey(destination))
+            {
+                /// Ajout de la connexion dans les deux sens (graphe non orienté)
+                sommets[source].connexions.Add(new Connexion(sommets[destination]));
+                sommets[destination].connexions.Add(new Connexion(sommets[source]));
             }
             else
             {
-                Console.WriteLine("Erreur : Un des nœuds spécifiés n'existe pas.");
+                Console.WriteLine("Erreur : un des sommets n'existe pas.");
             }
         }
 
-        public void AfficherListeAdjacence()
+        public void AfficherListe()
         {
             Console.WriteLine("Liste d'adjacence :");
-            foreach (var noeud in Noeuds.OrderBy(n => int.Parse(n.Key)))
+            /// Récupérer les noms des sommets dans liste
+            List<string> liste = new List<string>();
+            foreach (string cle in sommets.Keys)
             {
-                Console.Write(noeud.Key + " -> ");
-                foreach (var lien in noeud.Value.Liens)
+                liste.Add(cle);
+            }
+            /// Tri  
+            for (int i = 0; i < liste.Count - 1; i++)
+            {
+                for (int j = i + 1; j < liste.Count; j++)
                 {
-                    Console.Write(lien.Cible.Nom + " ");
+                    if (int.Parse(liste[i]) > int.Parse(liste[j]))
+                    {
+                        string a = liste[i];
+                        liste[i] = liste[j];
+                        liste[j] = a;
+                    }
+                }
+            }
+
+            /// Affichage de la liste d'adjacence
+            for (int i = 0; i < liste.Count; i++)
+            {
+                string nomSommet = liste[i];
+                Console.Write(nomSommet + " -> ");
+                for (int j = 0; j < sommets[nomSommet].connexions.Count; j++)
+                {
+                    Console.Write(sommets[nomSommet].connexions[j].cible.nom + " ");
                 }
                 Console.WriteLine();
             }
         }
 
-        public void AfficherMatriceAdjacence()
+        public void AfficherMatrice()
         {
             Console.WriteLine("\nMatrice d'adjacence :");
-
-            var noeudsTries = Noeuds.Keys.Select(int.Parse).OrderBy(x => x).Select(x => x.ToString()).ToList();
-
-            Console.Write("    ");
-            foreach (var nom in noeudsTries)
+            /// Récupérer les noms des sommets dans une liste
+            List<string> liste = new List<string>();
+            foreach (string cle in sommets.Keys)
             {
-                Console.Write(nom.PadLeft(3) + " ");
+                liste.Add(cle);
+            }
+            /// Tri 
+            for (int i = 0; i < liste.Count - 1; i++)
+            {
+                for (int j = i + 1; j < liste.Count; j++)
+                {
+                    if (int.Parse(liste[i]) > int.Parse(liste[j]))
+                    {
+                        string temp = liste[i];
+                        liste[i] = liste[j];
+                        liste[j] = temp;
+                    }
+                }
+            }
+
+            /// Affichage de la matrice
+            Console.Write("     ");
+            for (int i = 0; i < liste.Count; i++)
+            {
+                Console.Write(liste[i].PadLeft(5));
             }
             Console.WriteLine();
 
-            foreach (var ligne in noeudsTries)
+            /// Affichage de chaque ligne de la matrice
+            for (int i = 0; i < liste.Count; i++)
             {
-                Console.Write(ligne.PadLeft(3) + " ");
-                foreach (var colonne in noeudsTries)
+                Console.Write(liste[i].PadLeft(5));
+                for (int j = 0; j < liste.Count; j++)
                 {
-                    if (Noeuds[ligne].Liens.Any(l => l.Cible.Nom == colonne))
-                        Console.Write(" 1 ");
+                    bool trouve = false;
+                    for (int k = 0; k < sommets[liste[i]].connexions.Count; k++)
+                    {
+                        if (sommets[liste[i]].connexions[k].cible.nom == liste[j])
+                        {
+                            trouve = true;
+                            break;
+                        }
+                    }
+                    if (trouve)
+                        Console.Write("    1");
                     else
-                        Console.Write(" 0 ");
+                        Console.Write("    0");
                 }
                 Console.WriteLine();
             }
         }
 
-        public void ParcoursLargeur(string depart)
+        public void ParcourLargeur(string depart)
         {
-            if (!Noeuds.ContainsKey(depart))
+            if (!sommets.ContainsKey(depart))
             {
-                Console.WriteLine($"Le nœud '{depart}' n'existe pas.");
+                Console.WriteLine("Le sommet " + depart + " n'existe pas.");
                 return;
             }
 
-            Queue<Noeud> file = new Queue<Noeud>();
-            HashSet<string> visites = new HashSet<string>();
+            Queue<Sommet> file = new Queue<Sommet>();
+            List<string> vus = new List<string>();
 
-            file.Enqueue(Noeuds[depart]);
-            visites.Add(depart);
+            file.Enqueue(sommets[depart]);
+            vus.Add(depart);
 
             Console.WriteLine("Parcours en largeur :");
             while (file.Count > 0)
             {
-                Noeud courant = file.Dequeue();
-                Console.Write(courant.Nom + " ");
+                Sommet actuel = file.Dequeue();
+                Console.Write(actuel.nom + " ");
 
-                foreach (var lien in courant.Liens)
+                for (int i = 0; i < actuel.connexions.Count; i++)
                 {
-                    if (!visites.Contains(lien.Cible.Nom))
+                    string nomCible = actuel.connexions[i].cible.nom;
+                    if (!vus.Contains(nomCible))
                     {
-                        visites.Add(lien.Cible.Nom);
-                        file.Enqueue(lien.Cible);
+                        vus.Add(nomCible);
+                        file.Enqueue(actuel.connexions[i].cible);
                     }
                 }
             }
             Console.WriteLine();
         }
 
-        public void ParcoursProfondeur(string depart)
+        public void ParcourProfondeur(string depart)
         {
-            if (!Noeuds.ContainsKey(depart))
+            if (!sommets.ContainsKey(depart))
             {
-                Console.WriteLine($"Le nœud '{depart}' n'existe pas.");
+                Console.WriteLine("Le sommet " + depart + " n'existe pas.");
                 return;
             }
 
-            Stack<Noeud> pile = new Stack<Noeud>();
-            HashSet<string> visites = new HashSet<string>();
+            Stack<Sommet> pile = new Stack<Sommet>();
+            List<string> vus = new List<string>();
 
-            pile.Push(Noeuds[depart]);
+            pile.Push(sommets[depart]);
 
             Console.WriteLine("Parcours en profondeur :");
             while (pile.Count > 0)
             {
-                Noeud courant = pile.Pop();
-                if (!visites.Contains(courant.Nom))
+                Sommet actuel = pile.Pop();
+                if (!vus.Contains(actuel.nom))
                 {
-                    visites.Add(courant.Nom);
-                    Console.Write(courant.Nom + " ");
+                    vus.Add(actuel.nom);
+                    Console.Write(actuel.nom + " ");
 
-                    foreach (var lien in courant.Liens)
+                    for (int i = 0; i < actuel.connexions.Count; i++)
                     {
-                        if (!visites.Contains(lien.Cible.Nom))
+                        string nomCible = actuel.connexions[i].cible.nom;
+                        if (!vus.Contains(nomCible))
                         {
-                            pile.Push(lien.Cible);
+                            pile.Push(actuel.connexions[i].cible);
                         }
                     }
                 }
@@ -167,61 +224,60 @@ namespace LivInParisGraph
     {
         static void Main()
         {
-            string mtxFilePath = "soc-karate.mtx";
-            Graphe g = new Graphe();
-            List<(int, int)> liens = new List<(int, int)>();
+            string cheminFichier = "soc-karate.mtx";
+            Graphe monGraphe = new Graphe();
+            List<Tuple<int, int>> listeConnexions = new List<Tuple<int, int>>();
 
-            using (StreamReader sr = new StreamReader(mtxFilePath))
+            /// Lecture du fichier
+            StreamReader fichier = new StreamReader(cheminFichier);
+            string ligne;
+            while ((ligne = fichier.ReadLine()) != null)
             {
-                string? line;
-                while ((line = sr.ReadLine()) != null)
+                if (ligne.StartsWith("%") || ligne.Trim() == "")
                 {
-                    if (line.StartsWith("%") || string.IsNullOrWhiteSpace(line))
-                        continue;
-
-                    string[] parts = line.Split(' ');
-                    if (parts.Length == 2)
-                    {
-                        int source = int.Parse(parts[0]);
-                        int cible = int.Parse(parts[1]);
-                        g.AjouterNoeud(source.ToString());
-                        g.AjouterNoeud(cible.ToString());
-                        liens.Add((source, cible));
-                    }
+                    continue;
+                }
+                string[] morceaux = ligne.Split(' ');
+                if (morceaux.Length == 2)
+                {
+                    int src = int.Parse(morceaux[0]);
+                    int dest = int.Parse(morceaux[1]);
+                    monGraphe.AjouterSommet(src.ToString());
+                    monGraphe.AjouterSommet(dest.ToString());
+                    listeConnexions.Add(new Tuple<int, int>(src, dest));
                 }
             }
+            fichier.Close();
 
-            foreach (var (source, cible) in liens)
+            /// Ajout des connexions
+            for (int i = 0; i < listeConnexions.Count; i++)
             {
-                g.AjouterLien(source.ToString(), cible.ToString());
+                monGraphe.AjouterConnexion(listeConnexions[i].Item1.ToString(), listeConnexions[i].Item2.ToString());
             }
 
-            Console.WriteLine("Comment voulez-vous représenter le graphe ?");
+            Console.WriteLine("Comment voulez-vous afficher le graphe ?");
             Console.WriteLine("1 - Liste d'adjacence");
             Console.WriteLine("2 - Matrice d'adjacence");
             Console.Write("Votre choix : ");
             string choixAffichage = Console.ReadLine();
-
             if (choixAffichage == "1")
-                g.AfficherListeAdjacence();
+                monGraphe.AfficherListe();
             else if (choixAffichage == "2")
-                g.AfficherMatriceAdjacence();
+                monGraphe.AfficherMatrice();
             else
                 Console.WriteLine("Choix invalide, affichage par défaut en liste d'adjacence.");
 
-            Console.WriteLine("\nChoisissez un type de parcours :");
+            Console.WriteLine("\nQuel type de parcours souhaitez-vous ?");
             Console.WriteLine("1 - Parcours en largeur");
             Console.WriteLine("2 - Parcours en profondeur");
             Console.Write("Votre choix : ");
-            string choix = Console.ReadLine();
-
-            Console.Write("Entrez le nœud de départ : ");
+            string choixParcours = Console.ReadLine();
+            Console.Write("Entrez le sommet de départ : ");
             string depart = Console.ReadLine();
-
-            if (choix == "1")
-                g.ParcoursLargeur(depart);
-            else if (choix == "2")
-                g.ParcoursProfondeur(depart);
+            if (choixParcours == "1")
+                monGraphe.ParcourLargeur(depart);
+            else if (choixParcours == "2")
+                monGraphe.ParcourProfondeur(depart);
             else
                 Console.WriteLine("Choix invalide.");
 
@@ -230,5 +286,3 @@ namespace LivInParisGraph
         }
     }
 }
-
-/// MANQUE : aligner la matrice, interface graphique
