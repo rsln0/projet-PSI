@@ -3,3 +3,30 @@ On observe que celui ci nous renvoie un résultat parcourant les 34 sommets. On 
 
 Pour les cycles, on sait que un graphe connexe est sans cycle si son nombre d'arrête est égal au nombre de sommet - 1.
 Or dans le fichier, on observe qu'il contient 78 relations entre les sommets, donc le graphe contient 78 arrêtes ce qui prouve qu'il contient des cycles.
+
+
+Voici deux prompts qu'on a utilisés :
+
+1. Pour savoir comment bien afficher un graphe :
+
+"Génère une représentation graphique d’un graphe non orienté où les nœuds sont espacés pour éviter qu’ils se chevauchent. Chaque nœud doit être un cercle et les connexions des lignes. Propose plusieurs manières d'afficher cela en C#."
+
+Ce que l’IA nous a proposé :
+
+Utiliser un positionnement aléatoire contrôlé (ce qu’on a choisi).
+Placer les nœuds en grille (pas adapté pour un graphe dynamique).
+Utiliser un algorithme de force comme Fruchterman-Reingold (trop avancé pour notre projet).
+On a décidé de partir sur la disposition aléatoire, en veillant à ce que les nœuds ne soient pas trop proches les uns des autres.
+
+2. Pour générer l’image avec System.Drawing :
+
+"Comment utiliser System.Drawing en C# pour afficher un graphe sous forme d’image avec des nœuds bien positionnés et des arêtes visibles ?"
+
+Ce qu’on a appris :
+
+Créer un Bitmap et dessiner dessus.
+Tracer les arêtes avec Graphics.DrawLine().
+Dessiner les nœuds en cercles avec Graphics.FillEllipse().
+Ajouter des labels pour identifier chaque nœud.
+Grâce à ces conseils, on a écrit la fonction VisualiserGraphe(), qui génère un fichier .png contenant le graphe.
+
