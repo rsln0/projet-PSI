@@ -230,3 +230,5 @@ namespace LivInParisGraph
         }
     }
 }
+
+/// MANQUE : aligner la matrice, interface graphique
