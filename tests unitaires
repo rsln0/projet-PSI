@@ -1,0 +1,145 @@
+using System;
+using System.Collections.Generic;
+using Xunit;
+using LivInParisGraph;
+
+namespace TestProject1
+{
+    public class GrapheTests
+    {
+        [Fact]
+        public void AjouterNoeud_AjouteUnNoeud()
+        {
+            /// Arrange : on crée un graphe
+            var graphe = new Graphe();
+
+            /// Act : on ajoute un nœud
+            graphe.AjouterNoeud("1");
+
+            /// Assert : on vérifie que le nœud est bien dans le graphe
+            Assert.True(graphe.Noeuds.ContainsKey("1"));
+        }
+
+        [Fact]
+        public void AjouterLien_AjouteUnLien()
+        {
+            /// Arrange : création du graphe avec deux nœuds
+            var graphe = new Graphe();
+            graphe.AjouterNoeud("1");
+            graphe.AjouterNoeud("2");
+
+            /// Act : ajout d'un lien entre les nœuds
+            graphe.AjouterLien("1", "2");
+
+            /// Assert : on vérifie que le lien est bien ajouté
+            var sourceNoeud = graphe.Noeuds["1"];
+            Assert.Single(sourceNoeud.Liens);
+            Assert.Equal("2", sourceNoeud.Liens[0].Cible.Nom);
+        }
+
+        [Fact]
+        public void AjouterLien_ErreurSiNoeudInexistant()
+        {
+            /// Arrange : création du graphe avec un seul nœud
+            var graphe = new Graphe();
+            graphe.AjouterNoeud("1");
+
+            /// Act & Assert : on tente d'ajouter un lien vers un nœud inexistant, ce qui doit afficher une erreur mais ne pas planter
+            var ex = Record.Exception(() => graphe.AjouterLien("1", "3"));
+            Assert.Null(ex);
+        }
+
+        [Fact]
+        public void AfficherListeAdjacence_AfficheCorrectement()
+        {
+            /// Arrange : création du graphe avec quelques nœuds et liens
+            var graphe = new Graphe();
+            graphe.AjouterNoeud("1");
+            graphe.AjouterNoeud("2");
+            graphe.AjouterNoeud("3");
+            graphe.AjouterLien("1", "2");
+            graphe.AjouterLien("2", "3");
+
+            var output = new System.IO.StringWriter();
+            Console.SetOut(output);
+
+            /// Act : on affiche la liste d'adjacence
+            graphe.AfficherListeAdjacence();
+
+            /// Assert : on vérifie si l'affichage correspond à ce qui est attendu
+            var expectedOutput = "Liste d'adjacence :\n1 -> 2 \n2 -> 1 3 \n3 -> 2 \n";
+            var actualOutput = output.ToString().Replace("\r\n", "\n");
+            Assert.Equal(expectedOutput, actualOutput);
+        }
+
+        [Fact]
+        public void AfficherMatriceAdjacence_AfficheCorrectement()
+        {
+            /// Arrange : création d'un graphe simple
+            var graphe = new Graphe();
+            graphe.AjouterNoeud("1");
+            graphe.AjouterNoeud("2");
+            graphe.AjouterNoeud("3");
+            graphe.AjouterLien("1", "2");
+            graphe.AjouterLien("2", "3");
+
+            var output = new System.IO.StringWriter();
+            Console.SetOut(output);
+
+            /// Act : on affiche la matrice d'adjacence
+            graphe.AfficherMatriceAdjacence();
+
+            /// Assert : on vérifie l'affichage de la matrice (l'alignement peut varier selon l'implémentation de la Console)
+            var expectedOutput =
+                "\nMatrice d'adjacence :\n    1   2   3 \n  1  0  1  0 \n  2  1  0  1  \n  3  0  1  0 \n";
+            var actualOutput = output.ToString().Replace("\r\n", "\n");
+            Assert.Equal(expectedOutput, actualOutput);
+        }
+
+        [Fact]
+        public void ParcoursLargeur_ParcoursCorrectement()
+        {
+            /// Arrange : on crée un graphe et on ajoute des liens
+            var graphe = new Graphe();
+            graphe.AjouterNoeud("1");
+            graphe.AjouterNoeud("2");
+            graphe.AjouterNoeud("3");
+            graphe.AjouterLien("1", "2");
+            graphe.AjouterLien("2", "3");
+
+            var output = new System.IO.StringWriter();
+            Console.SetOut(output);
+
+            /// Act : on lance le parcours en largeur
+            graphe.ParcoursLargeur("1");
+
+            /// Assert : on vérifie que l'ordre de visite est bon
+            var expectedOutput = "Parcours en largeur :\n1 2 3 \n";
+            var actualOutput = output.ToString().Replace("\r\n", "\n");
+            Assert.Equal(expectedOutput, actualOutput);
+        }
+
+        [Fact]
+        public void ParcoursProfondeur_ParcoursCorrectement()
+        {
+            /// Arrange : on crée un graphe et on ajoute des liens
+            var graphe = new Graphe();
+            graphe.AjouterNoeud("1");
+            graphe.AjouterNoeud("2");
+            graphe.AjouterNoeud("3");
+            graphe.AjouterLien("1", "2");
+            graphe.AjouterLien("2", "3");
+
+            var output = new System.IO.StringWriter();
+            Console.SetOut(output);
+
+            /// Act : on lance le parcours en profondeur
+            graphe.ParcoursProfondeur("1");
+
+            /// Assert : le parcours en profondeur dépend de l'ordre dans la pile
+            var expectedOutput = "Parcours en profondeur :\n1 2 3 \n";
+            var actualOutput = output.ToString().Replace("\r\n", "\n");
+            Assert.Equal(expectedOutput, actualOutput);
+        }
+    }
+}
