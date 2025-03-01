@@ -218,6 +218,41 @@ namespace GraphEtudiantSimple
             }
             Console.WriteLine();
         }
+        
+        public void VisualiserGraphe(string fichier)
+        {
+            int largeur = 800, hauteur = 600;
+            Bitmap bitmap = new Bitmap(largeur, hauteur);
+            Graphics graphics = Graphics.FromImage(bitmap);
+            graphics.Clear(Color.White);
+            Font font = new Font("Arial", 12);
+            Brush brush = Brushes.Black;
+            Random rnd = new Random();
+            Dictionary<string, Point> positions = new Dictionary<string, Point>();
+            
+            foreach (var sommet in sommets.Keys)
+            {
+                positions[sommet] = new Point(rnd.Next(50, largeur - 50), rnd.Next(50, hauteur - 50));
+            }
+            
+            foreach (var sommet in sommets.Values)
+            {
+                foreach (var connexion in sommet.connexions)
+                {
+                    graphics.DrawLine(Pens.Black, positions[sommet.nom], positions[connexion.cible.nom]);
+                }
+            }
+            
+            foreach (var sommet in sommets.Values)
+            {
+                Point pos = positions[sommet.nom];
+                graphics.FillEllipse(Brushes.Blue, pos.X - 10, pos.Y - 10, 20, 20);
+                graphics.DrawString(sommet.nom, font, brush, pos.X + 5, pos.Y + 5);
+            }
+            
+            bitmap.Save(fichier, ImageFormat.Png);
+            Console.WriteLine($"Graphe visualisé et enregistré sous {fichier}");
+        }
     }
 
     class Program
@@ -281,6 +316,8 @@ namespace GraphEtudiantSimple
             else
                 Console.WriteLine("Choix invalide.");
 
+            monGraphe.VisualiserGraphe("graphe.png");
+            
             Console.WriteLine("Appuyez sur une touche pour fermer...");
             Console.ReadKey();
         }
