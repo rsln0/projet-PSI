@@ -185,6 +185,38 @@ namespace GraphEtudiantSimple
             bitmap.Save(fichier, ImageFormat.Png);
             Console.WriteLine($"Graphe visualisé et enregistré sous {fichier}");
         }
+        
+        public bool EstConnexe()
+        {
+            if (sommets.Count == 0) 
+                return false;
+        
+            List<string> visites = new List<string>();
+            List<Sommet> aExplorer = new List<Sommet>();
+        
+            string premierSommet = new List<string>(sommets.Keys)[0];
+            aExplorer.Add(sommets[premierSommet]);
+            visites.Add(premierSommet);
+        
+            while (aExplorer.Count > 0)
+            {
+                Sommet courant = aExplorer[0];
+                aExplorer.RemoveAt(0);
+        
+                foreach (var connexion in courant.connexions)
+                {
+                    string voisin = connexion.cible.nom;
+                    if (!visites.Contains(voisin))
+                    {
+                        visites.Add(voisin);
+                        aExplorer.Add(connexion.cible);
+                    }
+                }
+            }
+        
+            // Si on a visité tous les sommets, le graphe est connexe
+            return visites.Count == sommets.Count;
+        }
     }
 
     /// Programme principal
