@@ -217,8 +217,46 @@ namespace GraphEtudiantSimple
             // Si on a visité tous les sommets, le graphe est connexe
             return visites.Count == sommets.Count;
         }
+
+        public bool ContientCircuit()
+        {
+            // Pour chaque sommet du graphe, si non visité, on lance la recherche de cycle
+            List<string> visites = new List<string>();
+            foreach (Sommet s in sommets.Values)
+            {
+                if (!visites.Contains(s.nom))
+                {
+                    if (RechercheCycle(s, null, visites))
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        // Méthode récursive simple pour rechercher un cycle.
+        // 'courant' est le sommet actuel, 'parent' est le sommet d'où l'on vient.
+        private bool RechercheCycle(Sommet courant, string parent, List<string> visites)
+        {
+            visites.Add(courant.nom);
+            foreach (Connexion c in courant.connexions)
+            {
+                Sommet voisin = c.cible;
+                if (!visites.Contains(voisin.nom))
+                {
+                    if (RechercheCycle(voisin, courant.nom, visites))
+                        return true;
+                }
+                else if (voisin.nom != parent)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
+
+    
     /// Programme principal
     class Program
     {
