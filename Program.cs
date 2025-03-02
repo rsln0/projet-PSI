@@ -275,6 +275,9 @@ namespace GraphEtudiantSimple
             else
                 Console.WriteLine("Choix invalide.");
 
+            Console.WriteLine("Le graphe est-il connexe ? " + monGraphe.EstConnexe());
+            Console.WriteLine("Le graphe contient-il un cycle ? " + monGraphe.ContientCycle());
+            
             monGraphe.VisualiserGraphe("graphe.png");
             Console.WriteLine("Appuyez sur une touche pour fermer...");
             Console.ReadKey();
