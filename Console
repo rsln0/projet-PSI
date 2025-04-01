@@ -1,0 +1,185 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Data.SqlClient;
+
+namespace LivInParisApp
+{
+    class Program
+    {
+        private static Graphe<StationMetro> grapheMetro;
+        private static LecteurMetro lecteurMetro;
+        private static string connectionString = "Data Source=localhost;Initial Catalog=LivInParis;Integrated Security=True";
+
+        static void Main(string[] args)
+        {
+            // Initialiser le lecteur de métro et charger les données
+            lecteurMetro = new LecteurMetro();
+            
+            Console.WriteLine("Initialisation du système Liv'In Paris...");
+            Console.WriteLine("Chargement des données du métro parisien...");
+            
+            try
+            {
+                lecteurMetro.ChargerStations("metro_stations.csv");
+                lecteurMetro.ConstruireGraphe("metro_connections.csv");
+                lecteurMetro.AjouterTempsChangementLigne();
+                grapheMetro = lecteurMetro.GrapheMetro;
+                
+                Console.WriteLine($"Chargement terminé : {lecteurMetro.Stations.Count} stations et {CompterLiens(grapheMetro)} connexions");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur lors du chargement des données : {ex.Message}");
+                Console.WriteLine("Initialisation avec un graphe vide pour les tests");
+                grapheMetro = new Graphe<StationMetro>();
+            }
+
+            bool quitter = false;
+            while (!quitter)
+            {
+                AfficherMenuPrincipal();
+                string choix = Console.ReadLine();
+
+                switch (choix)
+                {
+                    case "1":
+                        GererClients();
+                        break;
+                    case "2":
+                        GererCuisiniers();
+                        break;
+                    case "3":
+                        GererCommandes();
+                        break;
+                    case "4":
+                        AfficherStatistiques();
+                        break;
+                    case "5":
+                        TesterAlgorithmesCheminPlusCourt();
+                        break;
+                    case "6":
+                        VisualiserGrapheMetro();
+                        break;
+                    case "0":
+                        quitter = true;
+                        break;
+                    default:
+                        Console.WriteLine("Option invalide. Veuillez réessayer.");
+                        break;
+                }
+            }
+        }
+
+        static void AfficherMenuPrincipal()
+        {
+            Console.WriteLine("\n=== MENU PRINCIPAL - LIV'IN PARIS ===");
+            Console.WriteLine("1. Gestion des Clients");
+            Console.WriteLine("2. Gestion des Cuisiniers");
+            Console.WriteLine("3. Gestion des Commandes");
+            Console.WriteLine("4. Statistiques");
+            Console.WriteLine("5. Tester les algorithmes de chemin le plus court");
+            Console.WriteLine("6. Visualiser le graphe du métro");
+            Console.WriteLine("0. Quitter");
+            Console.Write("Votre choix : ");
+        }
+
+        #region Gestion des Clients
+        static void GererClients()
+        {
+            bool retour = false;
+            while (!retour)
+            {
+                Console.WriteLine("\n=== GESTION DES CLIENTS ===");
+                Console.WriteLine("1. Ajouter un client");
+                Console.WriteLine("2. Modifier un client");
+                Console.WriteLine("3. Supprimer un client");
+                Console.WriteLine("4. Afficher tous les clients (ordre alphabétique)");
+                Console.WriteLine("5. Afficher les clients par rue");
+                Console.WriteLine("6. Afficher les clients par montant des achats");
+                Console.WriteLine("0. Retour au menu principal");
+                Console.Write("Votre choix : ");
+                
+                string choix = Console.ReadLine();
+                
+                switch (choix)
+                {
+                    case "1":
+                        AjouterClient();
+                        break;
+                    case "2":
+                        ModifierClient();
+                        break;
+                    case "3":
+                        SupprimerClient();
+                        break;
+                    case "4":
+                        AfficherClientsParOrdreAlphabetique();
+                        break;
+                    case "5":
+                        AfficherClientsParRue();
+                        break;
+                    case "6":
+                        AfficherClientsParMontantAchats();
+                        break;
+                    case "0":
+                        retour = true;
+                        break;
+                    default:
+                        Console.WriteLine("Option invalide. Veuillez réessayer.");
+                        break;
+                }
+            }
+        }
+
+        static void AjouterClient()
+        {
+            Console.WriteLine("\n=== AJOUTER UN CLIENT ===");
+            
+            Console.Write("Nom : ");
+            string nom = Console.ReadLine();
+            
+            Console.Write("Prénom : ");
+            string prenom = Console.ReadLine();
+            
+            Console.Write("Adresse : ");
+            string adresse = Console.ReadLine();
+            
+            Console.Write("Téléphone : ");
+            string telephone = Console.ReadLine();
+            
+            Console.Write("Email : ");
+            string email = Console.ReadLine();
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "INSERT INTO Client (nom, prenom, adresse, telephone, email) VALUES (@nom, @prenom, @adresse, @telephone, @email)";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@nom", nom);
+                        command.Parameters.AddWithValue("@prenom", prenom);
+                        command.Parameters.AddWithValue("@adresse", adresse);
+                        command.Parameters.AddWithValue("@telephone", telephone);
+                        command.Parameters.AddWithValue("@email", email);
+                        
+                        int result = command.ExecuteNonQuery();
+                        if (result > 0)
+                            Console.WriteLine("Client ajouté avec succès !");
+                        else
+                            Console.WriteLine("Erreur lors de l'ajout du client.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
