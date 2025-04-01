@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
 using System.Data.SqlClient;
+using System.IO;
+using System.Globalization;
 
 namespace LivInParisApp
 {
@@ -183,3 +182,643 @@ namespace LivInParisApp
             }
         }
 
+        static void ModifierClient()
+        {
+            Console.WriteLine("\n=== MODIFIER UN CLIENT ===");
+            
+            Console.Write("ID du client à modifier : ");
+            if (!int.TryParse(Console.ReadLine(), out int idClient))
+            {
+                Console.WriteLine("ID invalide.");
+                return;
+            }
+            
+            // Vérifier si le client existe
+            if (!ClientExiste(idClient))
+            {
+                Console.WriteLine("Client non trouvé.");
+                return;
+            }
+            
+            Console.Write("Nouveau nom (laissez vide pour ne pas modifier) : ");
+            string nom = Console.ReadLine();
+            
+            Console.Write("Nouveau prénom (laissez vide pour ne pas modifier) : ");
+            string prenom = Console.ReadLine();
+            
+            Console.Write("Nouvelle adresse (laissez vide pour ne pas modifier) : ");
+            string adresse = Console.ReadLine();
+            
+            Console.Write("Nouveau téléphone (laissez vide pour ne pas modifier) : ");
+            string telephone = Console.ReadLine();
+            
+            Console.Write("Nouvel email (laissez vide pour ne pas modifier) : ");
+            string email = Console.ReadLine();
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "UPDATE Client SET ";
+                    List<string> updateFields = new List<string>();
+                    
+                    if (!string.IsNullOrWhiteSpace(nom))
+                        updateFields.Add("nom = @nom");
+                    if (!string.IsNullOrWhiteSpace(prenom))
+                        updateFields.Add("prenom = @prenom");
+                    if (!string.IsNullOrWhiteSpace(adresse))
+                        updateFields.Add("adresse = @adresse");
+                    if (!string.IsNullOrWhiteSpace(telephone))
+                        updateFields.Add("telephone = @telephone");
+                    if (!string.IsNullOrWhiteSpace(email))
+                        updateFields.Add("email = @email");
+                    
+                    if (updateFields.Count == 0)
+                    {
+                        Console.WriteLine("Aucune modification à appliquer.");
+                        return;
+                    }
+                    
+                    query += string.Join(", ", updateFields);
+                    query += " WHERE id_client = @idClient";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@idClient", idClient);
+                        
+                        if (!string.IsNullOrWhiteSpace(nom))
+                            command.Parameters.AddWithValue("@nom", nom);
+                        if (!string.IsNullOrWhiteSpace(prenom))
+                            command.Parameters.AddWithValue("@prenom", prenom);
+                        if (!string.IsNullOrWhiteSpace(adresse))
+                            command.Parameters.AddWithValue("@adresse", adresse);
+                        if (!string.IsNullOrWhiteSpace(telephone))
+                            command.Parameters.AddWithValue("@telephone", telephone);
+                        if (!string.IsNullOrWhiteSpace(email))
+                            command.Parameters.AddWithValue("@email", email);
+                        
+                        int result = command.ExecuteNonQuery();
+                        if (result > 0)
+                            Console.WriteLine("Client modifié avec succès !");
+                        else
+                            Console.WriteLine("Erreur lors de la modification du client.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        static void SupprimerClient()
+        {
+            Console.WriteLine("\n=== SUPPRIMER UN CLIENT ===");
+            
+            Console.Write("ID du client à supprimer : ");
+            if (!int.TryParse(Console.ReadLine(), out int idClient))
+            {
+                Console.WriteLine("ID invalide.");
+                return;
+            }
+            
+            // Vérifier si le client existe
+            if (!ClientExiste(idClient))
+            {
+                Console.WriteLine("Client non trouvé.");
+                return;
+            }
+            
+            Console.Write("Êtes-vous sûr de vouloir supprimer ce client ? (O/N) : ");
+            if (Console.ReadLine().ToUpper() != "O")
+            {
+                Console.WriteLine("Suppression annulée.");
+                return;
+            }
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "DELETE FROM Client WHERE id_client = @idClient";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@idClient", idClient);
+                        
+                        int result = command.ExecuteNonQuery();
+                        if (result > 0)
+                            Console.WriteLine("Client supprimé avec succès !");
+                        else
+                            Console.WriteLine("Erreur lors de la suppression du client.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        static void AfficherClientsParOrdreAlphabetique()
+        {
+            Console.WriteLine("\n=== CLIENTS PAR ORDRE ALPHABÉTIQUE ===");
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "SELECT id_client, nom, prenom, adresse, telephone, email FROM Client ORDER BY nom, prenom";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        using (SqlDataReader reader = command.ExecuteReader())
+                        {
+                            if (!reader.HasRows)
+                            {
+                                Console.WriteLine("Aucun client trouvé.");
+                                return;
+                            }
+                            
+                            Console.WriteLine("ID | Nom | Prénom | Adresse | Téléphone | Email");
+                            Console.WriteLine("---------------------------------------------------");
+                            
+                            while (reader.Read())
+                            {
+                                Console.WriteLine($"{reader["id_client"]} | {reader["nom"]} | {reader["prenom"]} | {reader["adresse"]} | {reader["telephone"]} | {reader["email"]}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        static void AfficherClientsParRue()
+        {
+            Console.WriteLine("\n=== CLIENTS PAR RUE ===");
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "SELECT id_client, nom, prenom, adresse, telephone, email FROM Client ORDER BY adresse";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        using (SqlDataReader reader = command.ExecuteReader())
+                        {
+                            if (!reader.HasRows)
+                            {
+                                Console.WriteLine("Aucun client trouvé.");
+                                return;
+                            }
+                            
+                            Console.WriteLine("ID | Nom | Prénom | Adresse | Téléphone | Email");
+                            Console.WriteLine("---------------------------------------------------");
+                            
+                            while (reader.Read())
+                            {
+                                Console.WriteLine($"{reader["id_client"]} | {reader["nom"]} | {reader["prenom"]} | {reader["adresse"]} | {reader["telephone"]} | {reader["email"]}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        static void AfficherClientsParMontantAchats()
+        {
+            Console.WriteLine("\n=== CLIENTS PAR MONTANT DES ACHATS ===");
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = @"
+                        SELECT c.id_client, c.nom, c.prenom, c.adresse, c.telephone, c.email, 
+                               COALESCE(SUM(cmd.prix_total), 0) AS montant_total
+                        FROM Client c
+                        LEFT JOIN Commande cmd ON c.id_client = cmd.id_client
+                        GROUP BY c.id_client, c.nom, c.prenom, c.adresse, c.telephone, c.email
+                        ORDER BY montant_total DESC";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        using (SqlDataReader reader = command.ExecuteReader())
+                        {
+                            if (!reader.HasRows)
+                            {
+                                Console.WriteLine("Aucun client trouvé.");
+                                return;
+                            }
+                            
+                            Console.WriteLine("ID | Nom | Prénom | Montant Total | Adresse | Téléphone | Email");
+                            Console.WriteLine("-------------------------------------------------------------------");
+                            
+                            while (reader.Read())
+                            {
+                                Console.WriteLine($"{reader["id_client"]} | {reader["nom"]} | {reader["prenom"]} | {reader["montant_total"]} € | {reader["adresse"]} | {reader["telephone"]} | {reader["email"]}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        static bool ClientExiste(int idClient)
+        {
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "SELECT COUNT(*) FROM Client WHERE id_client = @idClient";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@idClient", idClient);
+                        return (int)command.ExecuteScalar() > 0;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+        #endregion
+
+        #region Gestion des Cuisiniers
+        static void GererCuisiniers()
+        {
+            bool retour = false;
+            while (!retour)
+            {
+                Console.WriteLine("\n=== GESTION DES CUISINIERS ===");
+                Console.WriteLine("1. Ajouter un cuisinier");
+                Console.WriteLine("2. Modifier un cuisinier");
+                Console.WriteLine("3. Supprimer un cuisinier");
+                Console.WriteLine("4. Afficher tous les cuisiniers");
+                Console.WriteLine("5. Afficher les clients servis par un cuisinier");
+                Console.WriteLine("6. Afficher les plats d'un cuisinier par fréquence");
+                Console.WriteLine("7. Consulter/Définir le plat du jour");
+                Console.WriteLine("0. Retour au menu principal");
+                Console.Write("Votre choix : ");
+                
+                string choix = Console.ReadLine();
+                
+                switch (choix)
+                {
+                    case "1":
+                        AjouterCuisinier();
+                        break;
+                    case "2":
+                        ModifierCuisinier();
+                        break;
+                    case "3":
+                        SupprimerCuisinier();
+                        break;
+                    case "4":
+                        AfficherCuisiniers();
+                        break;
+                    case "5":
+                        AfficherClientsServisParCuisinier();
+                        break;
+                    case "6":
+                        AfficherPlatsParFrequence();
+                        break;
+                    case "7":
+                        GererPlatDuJour();
+                        break;
+                    case "0":
+                        retour = true;
+                        break;
+                    default:
+                        Console.WriteLine("Option invalide. Veuillez réessayer.");
+                        break;
+                }
+            }
+        }
+
+        static void AjouterCuisinier()
+        {
+            Console.WriteLine("\n=== AJOUTER UN CUISINIER ===");
+            
+            Console.Write("Nom : ");
+            string nom = Console.ReadLine();
+            
+            Console.Write("Prénom : ");
+            string prenom = Console.ReadLine();
+            
+            Console.Write("Adresse : ");
+            string adresse = Console.ReadLine();
+            
+            Console.Write("Téléphone : ");
+            string telephone = Console.ReadLine();
+            
+            Console.Write("Email : ");
+            string email = Console.ReadLine();
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "INSERT INTO Cuisinier (nom, prenom, adresse, telephone, email) VALUES (@nom, @prenom, @adresse, @telephone, @email)";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@nom", nom);
+                        command.Parameters.AddWithValue("@prenom", prenom);
+                        command.Parameters.AddWithValue("@adresse", adresse);
+                        command.Parameters.AddWithValue("@telephone", telephone);
+                        command.Parameters.AddWithValue("@email", email);
+                        
+                        int result = command.ExecuteNonQuery();
+                        if (result > 0)
+                            Console.WriteLine("Cuisinier ajouté avec succès !");
+                        else
+                            Console.WriteLine("Erreur lors de l'ajout du cuisinier.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        static void ModifierCuisinier()
+        {
+            Console.WriteLine("\n=== MODIFIER UN CUISINIER ===");
+            
+            Console.Write("ID du cuisinier à modifier : ");
+            if (!int.TryParse(Console.ReadLine(), out int idCuisinier))
+            {
+                Console.WriteLine("ID invalide.");
+                return;
+            }
+            
+            // Vérifier si le cuisinier existe
+            if (!CuisinierExiste(idCuisinier))
+            {
+                Console.WriteLine("Cuisinier non trouvé.");
+                return;
+            }
+            
+            Console.Write("Nouveau nom (laissez vide pour ne pas modifier) : ");
+            string nom = Console.ReadLine();
+            
+            Console.Write("Nouveau prénom (laissez vide pour ne pas modifier) : ");
+            string prenom = Console.ReadLine();
+            
+            Console.Write("Nouvelle adresse (laissez vide pour ne pas modifier) : ");
+            string adresse = Console.ReadLine();
+            
+            Console.Write("Nouveau téléphone (laissez vide pour ne pas modifier) : ");
+            string telephone = Console.ReadLine();
+            
+            Console.Write("Nouvel email (laissez vide pour ne pas modifier) : ");
+            string email = Console.ReadLine();
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "UPDATE Cuisinier SET ";
+                    List<string> updateFields = new List<string>();
+                    
+                    if (!string.IsNullOrWhiteSpace(nom))
+                        updateFields.Add("nom = @nom");
+                    if (!string.IsNullOrWhiteSpace(prenom))
+                        updateFields.Add("prenom = @prenom");
+                    if (!string.IsNullOrWhiteSpace(adresse))
+                        updateFields.Add("adresse = @adresse");
+                    if (!string.IsNullOrWhiteSpace(telephone))
+                        updateFields.Add("telephone = @telephone");
+                    if (!string.IsNullOrWhiteSpace(email))
+                        updateFields.Add("email = @email");
+                    
+                    if (updateFields.Count == 0)
+                    {
+                        Console.WriteLine("Aucune modification à appliquer.");
+                        return;
+                    }
+                    
+                    query += string.Join(", ", updateFields);
+                    query += " WHERE id_cuisinier = @idCuisinier";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@idCuisinier", idCuisinier);
+                        
+                        if (!string.IsNullOrWhiteSpace(nom))
+                            command.Parameters.AddWithValue("@nom", nom);
+                        if (!string.IsNullOrWhiteSpace(prenom))
+                            command.Parameters.AddWithValue("@prenom", prenom);
+                        if (!string.IsNullOrWhiteSpace(adresse))
+                            command.Parameters.AddWithValue("@adresse", adresse);
+                        if (!string.IsNullOrWhiteSpace(telephone))
+                            command.Parameters.AddWithValue("@telephone", telephone);
+                        if (!string.IsNullOrWhiteSpace(email))
+                            command.Parameters.AddWithValue("@email", email);
+                        
+                        int result = command.ExecuteNonQuery();
+                        if (result > 0)
+                            Console.WriteLine("Cuisinier modifié avec succès !");
+                        else
+                            Console.WriteLine("Erreur lors de la modification du cuisinier.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        static void SupprimerCuisinier()
+        {
+            Console.WriteLine("\n=== SUPPRIMER UN CUISINIER ===");
+            
+            Console.Write("ID du cuisinier à supprimer : ");
+            if (!int.TryParse(Console.ReadLine(), out int idCuisinier))
+            {
+                Console.WriteLine("ID invalide.");
+                return;
+            }
+            
+            // Vérifier si le cuisinier existe
+            if (!CuisinierExiste(idCuisinier))
+            {
+                Console.WriteLine("Cuisinier non trouvé.");
+                return;
+            }
+            
+            Console.Write("Êtes-vous sûr de vouloir supprimer ce cuisinier ? (O/N) : ");
+            if (Console.ReadLine().ToUpper() != "O")
+            {
+                Console.WriteLine("Suppression annulée.");
+                return;
+            }
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "DELETE FROM Cuisinier WHERE id_cuisinier = @idCuisinier";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@idCuisinier", idCuisinier);
+                        
+                        int result = command.ExecuteNonQuery();
+                        if (result > 0)
+                            Console.WriteLine("Cuisinier supprimé avec succès !");
+                        else
+                            Console.WriteLine("Erreur lors de la suppression du cuisinier.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        static void AfficherCuisiniers()
+        {
+            Console.WriteLine("\n=== LISTE DES CUISINIERS ===");
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = "SELECT id_cuisinier, nom, prenom, adresse, telephone, email FROM Cuisinier ORDER BY nom, prenom";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        using (SqlDataReader reader = command.ExecuteReader())
+                        {
+                            if (!reader.HasRows)
+                            {
+                                Console.WriteLine("Aucun cuisinier trouvé.");
+                                return;
+                            }
+                            
+                            Console.WriteLine("ID | Nom | Prénom | Adresse | Téléphone | Email");
+                            Console.WriteLine("---------------------------------------------------");
+                            
+                            while (reader.Read())
+                            {
+                                Console.WriteLine($"{reader["id_cuisinier"]} | {reader["nom"]} | {reader["prenom"]} | {reader["adresse"]} | {reader["telephone"]} | {reader["email"]}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        static void AfficherClientsServisParCuisinier()
+        {
+            Console.WriteLine("\n=== CLIENTS SERVIS PAR UN CUISINIER ===");
+            
+            Console.Write("ID du cuisinier : ");
+            if (!int.TryParse(Console.ReadLine(), out int idCuisinier))
+            {
+                Console.WriteLine("ID invalide.");
+                return;
+            }
+            
+            // Vérifier si le cuisinier existe
+            if (!CuisinierExiste(idCuisinier))
+            {
+                Console.WriteLine("Cuisinier non trouvé.");
+                return;
+            }
+            
+            // Proposer de filtrer par période
+            Console.Write("Filtrer par période ? (O/N) : ");
+            bool filtrerParPeriode = Console.ReadLine().ToUpper() == "O";
+            
+            DateTime dateDebut = DateTime.MinValue;
+            DateTime dateFin = DateTime.MaxValue;
+            
+            if (filtrerParPeriode)
+            {
+                Console.Write("Date de début (JJ/MM/AAAA) : ");
+                if (!DateTime.TryParseExact(Console.ReadLine(), "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out dateDebut))
+                {
+                    Console.WriteLine("Format de date invalide. Utilisation de la date minimale.");
+                    dateDebut = DateTime.MinValue;
+                }
+                
+                Console.Write("Date de fin (JJ/MM/AAAA) : ");
+                if (!DateTime.TryParseExact(Console.ReadLine(), "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out dateFin))
+                {
+                    Console.WriteLine("Format de date invalide. Utilisation de la date maximale.");
+                    dateFin = DateTime.MaxValue;
+                }
+            }
+            
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    string query = @"
+                        SELECT DISTINCT c.id_client, c.nom, c.prenom, c.adresse, c.telephone, c.email,
+                               COUNT(cmd.id_commande) AS nombre_commandes,
+                               MAX(cmd.date_commande) AS derniere_commande
+                        FROM Client c
+                        INNER JOIN Commande cmd ON c.id_client = cmd.id_client
+                        WHERE cmd.id_cuisinier = @idCuisinier
+                        AND (@filtrerParPeriode = 0 OR (cmd.date_commande BETWEEN @dateDebut AND @dateFin))
+                        GROUP BY c.id_client, c.nom, c.prenom, c.adresse, c.telephone, c.email
+                        ORDER BY nombre_commandes DESC, derniere_commande DESC";
+                    
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@idCuisinier", idCuisinier);
+                        command.Parameters.AddWithValue("@filtrerParPeriode", filtrerParPeriode ? 1 : 0);
+                        command.Parameters.AddWithValue("@dateDebut", dateDebut);
+                        command.Parameters.AddWithValue("@dateFin", dateFin);
+                        
+                        using (SqlDataReader reader = command.ExecuteReader())
+                        {
+                            if (!reader.HasRows)
+                            {
+                                Console.WriteLine("Aucun client n'a été servi par ce cuisinier pour la période spécifiée.");
+                                return;
+                            }
+                            
+                            Console.WriteLine("ID | Nom | Prénom | Nb Commandes | Dernière Commande | Adresse | Téléphone | Email");
+                            Console.WriteLine("------------------------------------------------------------------------------------");
+                            
+                            while (reader.Read())
+                            {
+                                DateTime derniere
