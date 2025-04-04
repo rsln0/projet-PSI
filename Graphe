@@ -34,7 +34,7 @@ namespace LivInParisApp
 
             foreach (var noeud in noeudsTriesParId)
             {
-                Console.WriteLine($"Station: {noeud.Nom} (ID: {noeud.LigneMetro})");
+                Console.WriteLine($"Station: {noeud.Nom} (Ligne: {noeud.LigneMetro})");
 
                 // Trier les voisins par ID également
                 var voisinsTriesParId = noeud.Voisins.OrderBy(v => v.Key.LigneMetro).ToList();
@@ -42,7 +42,7 @@ namespace LivInParisApp
                 foreach (var voisin in voisinsTriesParId)
                 {
                     string typeConnection = noeud.LigneMetro == voisin.Key.LigneMetro ? "Même ligne" : "Correspondance";
-                    Console.WriteLine($"  -> Voisin: {voisin.Key.Nom} (ID: {voisin.Key.LigneMetro}), Temps: {voisin.Value} min, Type: {typeConnection}");
+                    Console.WriteLine($"  -> Voisin: {voisin.Key.Nom} (Ligne: {voisin.Key.LigneMetro}), Temps: {voisin.Value} min, Type: {typeConnection}");
                 }
 
                 Console.WriteLine(); // Ligne vide pour améliorer la lisibilité
@@ -72,13 +72,13 @@ namespace LivInParisApp
                     {
                         int idStation = int.Parse(donnees[0]);
                         string nomStation = donnees[1];
+                        string ligneMetro = donnees[2].Trim();
                         double tempsChangement = double.Parse(donnees[5], CultureInfo.InvariantCulture);
 
                         // Créer le nœud s'il n'existe pas déjà
                         if (!stationsParId.ContainsKey(idStation))
                         {
-                            // Utiliser l'ID comme LigneMetro pour identifier la station
-                            Noeud<T> nouveauNoeud = new Noeud<T>(default(T), nomStation, 0, 0, idStation);
+                            Noeud<T> nouveauNoeud = new Noeud<T>(default(T), nomStation, 0, 0, ligneMetro);
                             stationsParId.Add(idStation, nouveauNoeud);
                             AjouterNoeud(nouveauNoeud);
                             _tempsChangementMapping[idStation] = tempsChangement;
@@ -141,7 +141,8 @@ namespace LivInParisApp
             }
         }
 
-        private void ChargerCorrespondances()
+
+        public void ChargerCorrespondances()
         {
             try
             {
@@ -150,7 +151,6 @@ namespace LivInParisApp
 
                 foreach (Noeud<T> noeud in Noeuds)
                 {
-                    // Ignorer les stations sans nom (pour éviter des erreurs)
                     if (string.IsNullOrWhiteSpace(noeud.Nom))
                         continue;
 
@@ -161,13 +161,11 @@ namespace LivInParisApp
                     stationsParNom[noeud.Nom].Add(noeud);
                 }
 
-                // Traiter les correspondances pour les stations qui ont le même nom mais des IDs différents
                 int correspondancesCreees = 0;
                 foreach (var nomStation in stationsParNom.Keys)
                 {
                     var stationsMemeNom = stationsParNom[nomStation];
 
-                    // S'il y a plusieurs stations avec le même nom, on crée des correspondances
                     if (stationsMemeNom.Count > 1)
                     {
                         Console.WriteLine($"Création de correspondances pour la station : {nomStation} ({stationsMemeNom.Count} lignes)");
@@ -179,25 +177,35 @@ namespace LivInParisApp
                                 Noeud<T> station1 = stationsMemeNom[i];
                                 Noeud<T> station2 = stationsMemeNom[j];
 
-                                // Récupérer les temps de changement pour chaque ligne
-                                double tempsChangement1 = _tempsChangementMapping.TryGetValue(station1.LigneMetro, out double tc1) ? tc1 : 3.0;
-                                double tempsChangement2 = _tempsChangementMapping.TryGetValue(station2.LigneMetro, out double tc2) ? tc2 : 3.0;
+                                double tempsChangement1 = 3.0;
+                                double tempsChangement2 = 3.0;
 
-                                // Pour calculer le temps de correspondance, on fait la moyenne des deux temps
-                                // Cela représente le temps nécessaire pour passer d'une ligne à l'autre
+                                if (!string.IsNullOrWhiteSpace(station1.LigneMetro) &&
+                                    int.TryParse(station1.LigneMetro, out int value1) &&
+                                    _tempsChangementMapping.TryGetValue(value1, out double tc1))
+                                {
+                                    tempsChangement1 = tc1;
+                                }
+                                // Sinon, on garde la valeur par défaut 3.0
+
+                                if (!string.IsNullOrWhiteSpace(station2.LigneMetro) &&
+                                    int.TryParse(station2.LigneMetro, out int value2) &&
+                                    _tempsChangementMapping.TryGetValue(value2, out double tc2))
+                                {
+                                    tempsChangement2 = tc2;
+                                }
+                                // Sinon, on garde la valeur par défaut 3.0
+
                                 double tempsCorrespondance = (tempsChangement1 + tempsChangement2) / 2.0;
-
-                                // S'assurer que le temps n'est pas nul ou négatif
                                 if (tempsCorrespondance <= 0)
-                                    tempsCorrespondance = 3.0; // Valeur par défaut si temps non valide
+                                    tempsCorrespondance = 3.0;
 
-                                // Créer des liens dans les deux sens pour la correspondance
                                 AjouterLien(station1, station2, tempsCorrespondance);
                                 AjouterLien(station2, station1, tempsCorrespondance);
 
                                 correspondancesCreees++;
 
-                                Console.WriteLine($"  Correspondance: {station1.Nom} (ID: {station1.LigneMetro}) <--> {station2.Nom} (ID: {station2.LigneMetro}), Temps: {tempsCorrespondance} min");
+                                Console.WriteLine($"  Correspondance: {station1.Nom} (Ligne: {station1.LigneMetro}) <--> {station2.Nom} (Ligne: {station2.LigneMetro}), Temps: {tempsCorrespondance} min");
                             }
                         }
                     }
