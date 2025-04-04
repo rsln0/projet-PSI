@@ -16,6 +16,8 @@ namespace LivInParisApp
 
         static void Main(string[] args)
         {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
             try
             {
                 connection = new MySqlConnection(connectionString);
@@ -733,6 +735,7 @@ namespace LivInParisApp
                 {
                     case "1":
                         graphe.AfficherGraphe();
+                        Application.Run(new MetroGUI());
                         break;
                     case "2":
                         ComparerCheminsAvecInput(graphe);
