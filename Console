@@ -1,110 +1,111 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Data.SqlClient;
+using System.Data;
 using System.IO;
-using System.Globalization;
+using System.Linq;
+using MySql.Data.MySqlClient;
+using System.Text.Json;
+using System.Xml.Serialization;
 
 namespace LivInParisApp
 {
     class Program
     {
-        private static Graphe<StationMetro> grapheMetro;
-        private static LecteurMetro lecteurMetro;
-        private static string connectionString = "Data Source=localhost;Initial Catalog=LivInParis;Integrated Security=True";
+        private static string connectionString = "Server=localhost;Database=LivInParis;Uid=root;Pwd=zigwy2306;";
+        private static MySqlConnection connection;
 
         static void Main(string[] args)
         {
-            // Initialiser le lecteur de métro et charger les données
-            lecteurMetro = new LecteurMetro();
-            
-            Console.WriteLine("Initialisation du système Liv'In Paris...");
-            Console.WriteLine("Chargement des données du métro parisien...");
-            
             try
             {
-                lecteurMetro.ChargerStations("metro_stations.csv");
-                lecteurMetro.ConstruireGraphe("metro_connections.csv");
-                lecteurMetro.AjouterTempsChangementLigne();
-                grapheMetro = lecteurMetro.GrapheMetro;
-                
-                Console.WriteLine($"Chargement terminé : {lecteurMetro.Stations.Count} stations et {CompterLiens(grapheMetro)} connexions");
+                connection = new MySqlConnection(connectionString);
+                connection.Open();
+                Console.WriteLine("Connexion réussie à la base de données LivInParis");
+
+                // Menu principal
+                bool exit = false;
+                while (!exit)
+                {
+                    Console.Clear();
+                    Console.WriteLine("===== Liv'In Paris - Système de partage de repas =====");
+                    Console.WriteLine("1. Module Client");
+                    Console.WriteLine("2. Module Cuisinier");
+                    Console.WriteLine("3. Module Commande");
+                    Console.WriteLine("4. Module Statistiques");
+                    Console.WriteLine("5. Module Trajet");
+                    Console.WriteLine("6. Module Export (JSON/XML)");
+                    Console.WriteLine("7. Quitter");
+                    Console.Write("Votre choix : ");
+
+                    string choice = Console.ReadLine();
+                    Console.WriteLine();
+
+                    switch (choice)
+                    {
+                        case "1":
+                            ModuleClient();
+                            break;
+                        case "2":
+                            ModuleCuisinier();
+                            break;
+                        case "3":
+                            ModuleCommande();
+                            break;
+                        case "4":
+                            ModuleStatistiques();
+                            break;
+                        case "5":
+                            ModuleTrajet();
+                            break;
+                        case "6":
+                            ModuleExport();
+                            break;
+                        case "7":
+                            exit = true;
+                            break;
+                        default:
+                            Console.WriteLine("Option invalide. Veuillez réessayer.");
+                            break;
+                    }
+
+                    if (!exit)
+                    {
+                        Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+                        Console.ReadKey();
+                    }
+                }
+
+                connection.Close();
+                Console.WriteLine("Au revoir !");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Erreur lors du chargement des données : {ex.Message}");
-                Console.WriteLine("Initialisation avec un graphe vide pour les tests");
-                grapheMetro = new Graphe<StationMetro>();
-            }
-
-            bool quitter = false;
-            while (!quitter)
-            {
-                AfficherMenuPrincipal();
-                string choix = Console.ReadLine();
-
-                switch (choix)
-                {
-                    case "1":
-                        GererClients();
-                        break;
-                    case "2":
-                        GererCuisiniers();
-                        break;
-                    case "3":
-                        GererCommandes();
-                        break;
-                    case "4":
-                        AfficherStatistiques();
-                        break;
-                    case "5":
-                        TesterAlgorithmesCheminPlusCourt();
-                        break;
-                    case "6":
-                        VisualiserGrapheMetro();
-                        break;
-                    case "0":
-                        quitter = true;
-                        break;
-                    default:
-                        Console.WriteLine("Option invalide. Veuillez réessayer.");
-                        break;
-                }
+                Console.WriteLine($"Erreur : {ex.Message}");
             }
         }
 
-        static void AfficherMenuPrincipal()
-        {
-            Console.WriteLine("\n=== MENU PRINCIPAL - LIV'IN PARIS ===");
-            Console.WriteLine("1. Gestion des Clients");
-            Console.WriteLine("2. Gestion des Cuisiniers");
-            Console.WriteLine("3. Gestion des Commandes");
-            Console.WriteLine("4. Statistiques");
-            Console.WriteLine("5. Tester les algorithmes de chemin le plus court");
-            Console.WriteLine("6. Visualiser le graphe du métro");
-            Console.WriteLine("0. Quitter");
-            Console.Write("Votre choix : ");
-        }
-
-        #region Gestion des Clients
-        static void GererClients()
+        #region Module Client
+        private static void ModuleClient()
         {
             bool retour = false;
             while (!retour)
             {
-                Console.WriteLine("\n=== GESTION DES CLIENTS ===");
+                Console.Clear();
+                Console.WriteLine("===== MODULE CLIENT =====");
                 Console.WriteLine("1. Ajouter un client");
                 Console.WriteLine("2. Modifier un client");
                 Console.WriteLine("3. Supprimer un client");
                 Console.WriteLine("4. Afficher tous les clients (ordre alphabétique)");
                 Console.WriteLine("5. Afficher les clients par rue");
-                Console.WriteLine("6. Afficher les clients par montant des achats");
-                Console.WriteLine("0. Retour au menu principal");
+                Console.WriteLine("6. Afficher les clients par montant d'achats");
+                Console.WriteLine("7. Importer des clients depuis un fichier CSV");
+                Console.WriteLine("8. Retour au menu principal");
                 Console.Write("Votre choix : ");
-                
-                string choix = Console.ReadLine();
-                
-                switch (choix)
+
+                string choice = Console.ReadLine();
+                Console.WriteLine();
+
+                switch (choice)
                 {
                     case "1":
                         AjouterClient();
@@ -124,56 +125,73 @@ namespace LivInParisApp
                     case "6":
                         AfficherClientsParMontantAchats();
                         break;
-                    case "0":
+                    case "7":
+                        ImporterClientsCSV();
+                        break;
+                    case "8":
                         retour = true;
                         break;
                     default:
                         Console.WriteLine("Option invalide. Veuillez réessayer.");
                         break;
                 }
+
+                if (!retour)
+                {
+                    Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+                    Console.ReadKey();
+                }
             }
         }
 
-        static void AjouterClient()
+        private static void AjouterClient()
         {
-            Console.WriteLine("\n=== AJOUTER UN CLIENT ===");
-            
+            Console.WriteLine("=== Ajout d'un nouveau client ===");
+
             Console.Write("Nom : ");
             string nom = Console.ReadLine();
-            
+
             Console.Write("Prénom : ");
             string prenom = Console.ReadLine();
-            
+
             Console.Write("Adresse : ");
             string adresse = Console.ReadLine();
-            
+
             Console.Write("Téléphone : ");
             string telephone = Console.ReadLine();
-            
+
             Console.Write("Email : ");
             string email = Console.ReadLine();
-            
+
             try
             {
-                using (SqlConnection connection = new SqlConnection(connectionString))
+                string query = "INSERT INTO Client (nom, prenom, adresse, telephone, email) VALUES (@nom, @prenom, @adresse, @telephone, @email)";
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+                cmd.Parameters.AddWithValue("@nom", nom);
+                cmd.Parameters.AddWithValue("@prenom", prenom);
+                cmd.Parameters.AddWithValue("@adresse", adresse);
+                cmd.Parameters.AddWithValue("@telephone", telephone);
+                cmd.Parameters.AddWithValue("@email", email);
+
+                int rowsAffected = cmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
                 {
-                    connection.Open();
-                    string query = "INSERT INTO Client (nom, prenom, adresse, telephone, email) VALUES (@nom, @prenom, @adresse, @telephone, @email)";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
-                    {
-                        command.Parameters.AddWithValue("@nom", nom);
-                        command.Parameters.AddWithValue("@prenom", prenom);
-                        command.Parameters.AddWithValue("@adresse", adresse);
-                        command.Parameters.AddWithValue("@telephone", telephone);
-                        command.Parameters.AddWithValue("@email", email);
-                        
-                        int result = command.ExecuteNonQuery();
-                        if (result > 0)
-                            Console.WriteLine("Client ajouté avec succès !");
-                        else
-                            Console.WriteLine("Erreur lors de l'ajout du client.");
-                    }
+                    Console.WriteLine("Client ajouté avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Erreur lors de l'ajout du client.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1062) // Duplicate entry for email
+                {
+                    Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
                 }
             }
             catch (Exception ex)
@@ -182,88 +200,104 @@ namespace LivInParisApp
             }
         }
 
-        static void ModifierClient()
+        private static void ModifierClient()
         {
-            Console.WriteLine("\n=== MODIFIER UN CLIENT ===");
-            
-            Console.Write("ID du client à modifier : ");
+            Console.WriteLine("=== Modification d'un client ===");
+
+            Console.Write("Entrez l'ID du client à modifier : ");
             if (!int.TryParse(Console.ReadLine(), out int idClient))
             {
                 Console.WriteLine("ID invalide.");
                 return;
             }
-            
-            // Vérifier si le client existe
-            if (!ClientExiste(idClient))
-            {
-                Console.WriteLine("Client non trouvé.");
-                return;
-            }
-            
-            Console.Write("Nouveau nom (laissez vide pour ne pas modifier) : ");
-            string nom = Console.ReadLine();
-            
-            Console.Write("Nouveau prénom (laissez vide pour ne pas modifier) : ");
-            string prenom = Console.ReadLine();
-            
-            Console.Write("Nouvelle adresse (laissez vide pour ne pas modifier) : ");
-            string adresse = Console.ReadLine();
-            
-            Console.Write("Nouveau téléphone (laissez vide pour ne pas modifier) : ");
-            string telephone = Console.ReadLine();
-            
-            Console.Write("Nouvel email (laissez vide pour ne pas modifier) : ");
-            string email = Console.ReadLine();
-            
+
             try
             {
-                using (SqlConnection connection = new SqlConnection(connectionString))
+                // Vérifier si le client existe
+                string checkQuery = "SELECT * FROM Client WHERE id_client = @id";
+                MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
+                checkCmd.Parameters.AddWithValue("@id", idClient);
+
+                using (MySqlDataReader reader = checkCmd.ExecuteReader())
                 {
-                    connection.Open();
-                    string query = "UPDATE Client SET ";
-                    List<string> updateFields = new List<string>();
-                    
-                    if (!string.IsNullOrWhiteSpace(nom))
-                        updateFields.Add("nom = @nom");
-                    if (!string.IsNullOrWhiteSpace(prenom))
-                        updateFields.Add("prenom = @prenom");
-                    if (!string.IsNullOrWhiteSpace(adresse))
-                        updateFields.Add("adresse = @adresse");
-                    if (!string.IsNullOrWhiteSpace(telephone))
-                        updateFields.Add("telephone = @telephone");
-                    if (!string.IsNullOrWhiteSpace(email))
-                        updateFields.Add("email = @email");
-                    
-                    if (updateFields.Count == 0)
+                    if (!reader.Read())
                     {
-                        Console.WriteLine("Aucune modification à appliquer.");
+                        Console.WriteLine("Client non trouvé.");
                         return;
                     }
-                    
-                    query += string.Join(", ", updateFields);
-                    query += " WHERE id_client = @idClient";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
+
+                    Console.WriteLine($"Modification du client: {reader["prenom"]} {reader["nom"]}");
+                }
+
+                Console.WriteLine("Entrez les nouvelles informations (laissez vide pour conserver la valeur actuelle):");
+
+                // Récupérer les valeurs actuelles
+                string currentQuery = "SELECT * FROM Client WHERE id_client = @id";
+                MySqlCommand currentCmd = new MySqlCommand(currentQuery, connection);
+                currentCmd.Parameters.AddWithValue("@id", idClient);
+
+                string currentNom = "", currentPrenom = "", currentAdresse = "", currentTelephone = "", currentEmail = "";
+
+                using (MySqlDataReader reader = currentCmd.ExecuteReader())
+                {
+                    if (reader.Read())
                     {
-                        command.Parameters.AddWithValue("@idClient", idClient);
-                        
-                        if (!string.IsNullOrWhiteSpace(nom))
-                            command.Parameters.AddWithValue("@nom", nom);
-                        if (!string.IsNullOrWhiteSpace(prenom))
-                            command.Parameters.AddWithValue("@prenom", prenom);
-                        if (!string.IsNullOrWhiteSpace(adresse))
-                            command.Parameters.AddWithValue("@adresse", adresse);
-                        if (!string.IsNullOrWhiteSpace(telephone))
-                            command.Parameters.AddWithValue("@telephone", telephone);
-                        if (!string.IsNullOrWhiteSpace(email))
-                            command.Parameters.AddWithValue("@email", email);
-                        
-                        int result = command.ExecuteNonQuery();
-                        if (result > 0)
-                            Console.WriteLine("Client modifié avec succès !");
-                        else
-                            Console.WriteLine("Erreur lors de la modification du client.");
+                        currentNom = reader["nom"].ToString();
+                        currentPrenom = reader["prenom"].ToString();
+                        currentAdresse = reader["adresse"].ToString();
+                        currentTelephone = reader["telephone"].ToString();
+                        currentEmail = reader["email"].ToString();
                     }
+                }
+
+                Console.Write($"Nom [{currentNom}] : ");
+                string nom = Console.ReadLine();
+                nom = string.IsNullOrWhiteSpace(nom) ? currentNom : nom;
+
+                Console.Write($"Prénom [{currentPrenom}] : ");
+                string prenom = Console.ReadLine();
+                prenom = string.IsNullOrWhiteSpace(prenom) ? currentPrenom : prenom;
+
+                Console.Write($"Adresse [{currentAdresse}] : ");
+                string adresse = Console.ReadLine();
+                adresse = string.IsNullOrWhiteSpace(adresse) ? currentAdresse : adresse;
+
+                Console.Write($"Téléphone [{currentTelephone}] : ");
+                string telephone = Console.ReadLine();
+                telephone = string.IsNullOrWhiteSpace(telephone) ? currentTelephone : telephone;
+
+                Console.Write($"Email [{currentEmail}] : ");
+                string email = Console.ReadLine();
+                email = string.IsNullOrWhiteSpace(email) ? currentEmail : email;
+
+                string updateQuery = "UPDATE Client SET nom = @nom, prenom = @prenom, adresse = @adresse, telephone = @telephone, email = @email WHERE id_client = @id";
+                MySqlCommand updateCmd = new MySqlCommand(updateQuery, connection);
+                updateCmd.Parameters.AddWithValue("@nom", nom);
+                updateCmd.Parameters.AddWithValue("@prenom", prenom);
+                updateCmd.Parameters.AddWithValue("@adresse", adresse);
+                updateCmd.Parameters.AddWithValue("@telephone", telephone);
+                updateCmd.Parameters.AddWithValue("@email", email);
+                updateCmd.Parameters.AddWithValue("@id", idClient);
+
+                int rowsAffected = updateCmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
+                {
+                    Console.WriteLine("Client modifié avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Aucune modification n'a été effectuée.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1062) // Duplicate entry for email
+                {
+                    Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
                 }
             }
             catch (Exception ex)
@@ -272,219 +306,276 @@ namespace LivInParisApp
             }
         }
 
-        static void SupprimerClient()
+        private static void SupprimerClient()
         {
-            Console.WriteLine("\n=== SUPPRIMER UN CLIENT ===");
-            
-            Console.Write("ID du client à supprimer : ");
+            Console.WriteLine("=== Suppression d'un client ===");
+
+            Console.Write("Entrez l'ID du client à supprimer : ");
             if (!int.TryParse(Console.ReadLine(), out int idClient))
             {
                 Console.WriteLine("ID invalide.");
                 return;
             }
-            
-            // Vérifier si le client existe
-            if (!ClientExiste(idClient))
+
+            try
             {
-                Console.WriteLine("Client non trouvé.");
+                // Vérifier si le client existe
+                string checkQuery = "SELECT * FROM Client WHERE id_client = @id";
+                MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
+                checkCmd.Parameters.AddWithValue("@id", idClient);
+
+                using (MySqlDataReader reader = checkCmd.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        Console.WriteLine("Client non trouvé.");
+                        return;
+                    }
+
+                    Console.WriteLine($"Vous êtes sur le point de supprimer le client: {reader["prenom"]} {reader["nom"]}");
+                }
+
+                Console.Write("Êtes-vous sûr ? (O/N) : ");
+                string confirmation = Console.ReadLine().ToUpper();
+
+                if (confirmation != "O" && confirmation != "OUI")
+                {
+                    Console.WriteLine("Suppression annulée.");
+                    return;
+                }
+
+                string deleteQuery = "DELETE FROM Client WHERE id_client = @id";
+                MySqlCommand deleteCmd = new MySqlCommand(deleteQuery, connection);
+                deleteCmd.Parameters.AddWithValue("@id", idClient);
+
+                int rowsAffected = deleteCmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
+                {
+                    Console.WriteLine("Client supprimé avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Aucun client n'a été supprimé.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1451) // Foreign key constraint
+                {
+                    Console.WriteLine("Erreur: Ce client ne peut pas être supprimé car il est lié à des commandes.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherClientsParOrdreAlphabetique()
+        {
+            Console.WriteLine("=== Liste des clients par ordre alphabétique ===");
+
+            try
+            {
+                string query = "SELECT id_client, nom, prenom, adresse, telephone, email FROM Client ORDER BY nom, prenom";
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+
+                using (MySqlDataReader reader = cmd.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucun client trouvé.");
+                        return;
+                    }
+
+                    Console.WriteLine("ID\tNom\t\tPrénom\t\tAdresse\t\t\tTéléphone\tEmail");
+                    Console.WriteLine(new string('-', 100));
+
+                    while (reader.Read())
+                    {
+                        Console.WriteLine($"{reader["id_client"]}\t{reader["nom"],-15}{reader["prenom"],-15}{reader["adresse"],-30}{reader["telephone"],-15}{reader["email"]}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherClientsParRue()
+        {
+            Console.WriteLine("=== Liste des clients par rue ===");
+
+            try
+            {
+                string query = "SELECT id_client, nom, prenom, adresse, telephone, email FROM Client ORDER BY adresse";
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+
+                using (MySqlDataReader reader = cmd.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucun client trouvé.");
+                        return;
+                    }
+
+                    Console.WriteLine("ID\tNom\t\tPrénom\t\tAdresse\t\t\tTéléphone\tEmail");
+                    Console.WriteLine(new string('-', 100));
+
+                    while (reader.Read())
+                    {
+                        Console.WriteLine($"{reader["id_client"]}\t{reader["nom"],-15}{reader["prenom"],-15}{reader["adresse"],-30}{reader["telephone"],-15}{reader["email"]}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherClientsParMontantAchats()
+        {
+            Console.WriteLine("=== Liste des clients par montant d'achats ===");
+
+            try
+            {
+                string query = @"
+                    SELECT c.id_client, c.nom, c.prenom, c.adresse, c.telephone, c.email, 
+                           IFNULL(SUM(co.prix_total), 0) as total_achats
+                    FROM Client c
+                    LEFT JOIN Commande co ON c.id_client = co.id_client
+                    GROUP BY c.id_client
+                    ORDER BY total_achats DESC";
+
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+
+                using (MySqlDataReader reader = cmd.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucun client trouvé.");
+                        return;
+                    }
+
+                    Console.WriteLine("ID\tNom\t\tPrénom\t\tTotal Achats\tAdresse\t\t\tTéléphone\tEmail");
+                    Console.WriteLine(new string('-', 120));
+
+                    while (reader.Read())
+                    {
+                        decimal totalAchats = Convert.ToDecimal(reader["total_achats"]);
+                        Console.WriteLine($"{reader["id_client"]}\t{reader["nom"],-15}{reader["prenom"],-15}{totalAchats:C2,-15}{reader["adresse"],-30}{reader["telephone"],-15}{reader["email"]}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void ImporterClientsCSV()
+        {
+            Console.WriteLine("=== Importation de clients depuis un fichier CSV ===");
+
+            Console.Write("Entrez le chemin du fichier CSV : ");
+            string filePath = Console.ReadLine();
+
+            if (!File.Exists(filePath))
+            {
+                Console.WriteLine("Le fichier spécifié n'existe pas.");
                 return;
             }
-            
-            Console.Write("Êtes-vous sûr de vouloir supprimer ce client ? (O/N) : ");
-            if (Console.ReadLine().ToUpper() != "O")
-            {
-                Console.WriteLine("Suppression annulée.");
-                return;
-            }
-            
-            try
-            {
-                using (SqlConnection connection = new SqlConnection(connectionString))
-                {
-                    connection.Open();
-                    string query = "DELETE FROM Client WHERE id_client = @idClient";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
-                    {
-                        command.Parameters.AddWithValue("@idClient", idClient);
-                        
-                        int result = command.ExecuteNonQuery();
-                        if (result > 0)
-                            Console.WriteLine("Client supprimé avec succès !");
-                        else
-                            Console.WriteLine("Erreur lors de la suppression du client.");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erreur: {ex.Message}");
-            }
-        }
 
-        static void AfficherClientsParOrdreAlphabetique()
-        {
-            Console.WriteLine("\n=== CLIENTS PAR ORDRE ALPHABÉTIQUE ===");
-            
             try
             {
-                using (SqlConnection connection = new SqlConnection(connectionString))
+                int importCount = 0;
+                int errorCount = 0;
+
+                using (StreamReader reader = new StreamReader(filePath))
                 {
-                    connection.Open();
-                    string query = "SELECT id_client, nom, prenom, adresse, telephone, email FROM Client ORDER BY nom, prenom";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
+                    string line = reader.ReadLine(); // Skip header if exists
+
+                    while ((line = reader.ReadLine()) != null)
                     {
-                        using (SqlDataReader reader = command.ExecuteReader())
+                        string[] values = line.Split(',');
+
+                        if (values.Length < 5)
                         {
-                            if (!reader.HasRows)
+                            Console.WriteLine($"Ligne ignorée (format incorrect): {line}");
+                            errorCount++;
+                            continue;
+                        }
+
+                        string nom = values[0].Trim();
+                        string prenom = values[1].Trim();
+                        string adresse = values[2].Trim();
+                        string telephone = values[3].Trim();
+                        string email = values[4].Trim();
+
+                        try
+                        {
+                            string query = "INSERT INTO Client (nom, prenom, adresse, telephone, email) VALUES (@nom, @prenom, @adresse, @telephone, @email)";
+                            MySqlCommand cmd = new MySqlCommand(query, connection);
+                            cmd.Parameters.AddWithValue("@nom", nom);
+                            cmd.Parameters.AddWithValue("@prenom", prenom);
+                            cmd.Parameters.AddWithValue("@adresse", adresse);
+                            cmd.Parameters.AddWithValue("@telephone", telephone);
+                            cmd.Parameters.AddWithValue("@email", email);
+
+                            int rowsAffected = cmd.ExecuteNonQuery();
+                            if (rowsAffected > 0)
                             {
-                                Console.WriteLine("Aucun client trouvé.");
-                                return;
+                                importCount++;
                             }
-                            
-                            Console.WriteLine("ID | Nom | Prénom | Adresse | Téléphone | Email");
-                            Console.WriteLine("---------------------------------------------------");
-                            
-                            while (reader.Read())
+                        }
+                        catch (MySqlException ex)
+                        {
+                            if (ex.Number == 1062) // Duplicate entry for email
                             {
-                                Console.WriteLine($"{reader["id_client"]} | {reader["nom"]} | {reader["prenom"]} | {reader["adresse"]} | {reader["telephone"]} | {reader["email"]}");
+                                Console.WriteLine($"Email déjà existant: {email}");
                             }
+                            else
+                            {
+                                Console.WriteLine($"Erreur MySQL: {ex.Message}");
+                            }
+                            errorCount++;
                         }
                     }
                 }
+
+                Console.WriteLine($"Importation terminée. {importCount} clients importés, {errorCount} erreurs.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Erreur: {ex.Message}");
-            }
-        }
-
-        static void AfficherClientsParRue()
-        {
-            Console.WriteLine("\n=== CLIENTS PAR RUE ===");
-            
-            try
-            {
-                using (SqlConnection connection = new SqlConnection(connectionString))
-                {
-                    connection.Open();
-                    string query = "SELECT id_client, nom, prenom, adresse, telephone, email FROM Client ORDER BY adresse";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
-                    {
-                        using (SqlDataReader reader = command.ExecuteReader())
-                        {
-                            if (!reader.HasRows)
-                            {
-                                Console.WriteLine("Aucun client trouvé.");
-                                return;
-                            }
-                            
-                            Console.WriteLine("ID | Nom | Prénom | Adresse | Téléphone | Email");
-                            Console.WriteLine("---------------------------------------------------");
-                            
-                            while (reader.Read())
-                            {
-                                Console.WriteLine($"{reader["id_client"]} | {reader["nom"]} | {reader["prenom"]} | {reader["adresse"]} | {reader["telephone"]} | {reader["email"]}");
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erreur: {ex.Message}");
-            }
-        }
-
-        static void AfficherClientsParMontantAchats()
-        {
-            Console.WriteLine("\n=== CLIENTS PAR MONTANT DES ACHATS ===");
-            
-            try
-            {
-                using (SqlConnection connection = new SqlConnection(connectionString))
-                {
-                    connection.Open();
-                    string query = @"
-                        SELECT c.id_client, c.nom, c.prenom, c.adresse, c.telephone, c.email, 
-                               COALESCE(SUM(cmd.prix_total), 0) AS montant_total
-                        FROM Client c
-                        LEFT JOIN Commande cmd ON c.id_client = cmd.id_client
-                        GROUP BY c.id_client, c.nom, c.prenom, c.adresse, c.telephone, c.email
-                        ORDER BY montant_total DESC";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
-                    {
-                        using (SqlDataReader reader = command.ExecuteReader())
-                        {
-                            if (!reader.HasRows)
-                            {
-                                Console.WriteLine("Aucun client trouvé.");
-                                return;
-                            }
-                            
-                            Console.WriteLine("ID | Nom | Prénom | Montant Total | Adresse | Téléphone | Email");
-                            Console.WriteLine("-------------------------------------------------------------------");
-                            
-                            while (reader.Read())
-                            {
-                                Console.WriteLine($"{reader["id_client"]} | {reader["nom"]} | {reader["prenom"]} | {reader["montant_total"]} € | {reader["adresse"]} | {reader["telephone"]} | {reader["email"]}");
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erreur: {ex.Message}");
-            }
-        }
-
-        static bool ClientExiste(int idClient)
-        {
-            try
-            {
-                using (SqlConnection connection = new SqlConnection(connectionString))
-                {
-                    connection.Open();
-                    string query = "SELECT COUNT(*) FROM Client WHERE id_client = @idClient";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
-                    {
-                        command.Parameters.AddWithValue("@idClient", idClient);
-                        return (int)command.ExecuteScalar() > 0;
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                return false;
+                Console.WriteLine($"Erreur lors de l'importation: {ex.Message}");
             }
         }
         #endregion
 
-        #region Gestion des Cuisiniers
-        static void GererCuisiniers()
+        #region Module Cuisinier
+        private static void ModuleCuisinier()
         {
             bool retour = false;
             while (!retour)
             {
-                Console.WriteLine("\n=== GESTION DES CUISINIERS ===");
+                Console.Clear();
+                Console.WriteLine("===== MODULE CUISINIER =====");
                 Console.WriteLine("1. Ajouter un cuisinier");
                 Console.WriteLine("2. Modifier un cuisinier");
                 Console.WriteLine("3. Supprimer un cuisinier");
-                Console.WriteLine("4. Afficher tous les cuisiniers");
-                Console.WriteLine("5. Afficher les clients servis par un cuisinier");
-                Console.WriteLine("6. Afficher les plats d'un cuisinier par fréquence");
-                Console.WriteLine("7. Consulter/Définir le plat du jour");
-                Console.WriteLine("0. Retour au menu principal");
+                Console.WriteLine("4. Retour au menu principal");
                 Console.Write("Votre choix : ");
-                
-                string choix = Console.ReadLine();
-                
-                switch (choix)
+
+                string choice = Console.ReadLine();
+                Console.WriteLine();
+
+                switch (choice)
                 {
                     case "1":
                         AjouterCuisinier();
@@ -496,67 +587,69 @@ namespace LivInParisApp
                         SupprimerCuisinier();
                         break;
                     case "4":
-                        AfficherCuisiniers();
-                        break;
-                    case "5":
-                        AfficherClientsServisParCuisinier();
-                        break;
-                    case "6":
-                        AfficherPlatsParFrequence();
-                        break;
-                    case "7":
-                        GererPlatDuJour();
-                        break;
-                    case "0":
                         retour = true;
                         break;
                     default:
                         Console.WriteLine("Option invalide. Veuillez réessayer.");
                         break;
                 }
+
+                if (!retour)
+                {
+                    Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+                    Console.ReadKey();
+                }
             }
         }
 
-        static void AjouterCuisinier()
+        private static void AjouterCuisinier()
         {
-            Console.WriteLine("\n=== AJOUTER UN CUISINIER ===");
-            
+            Console.WriteLine("=== Ajout d'un nouveau cuisinier ===");
+
             Console.Write("Nom : ");
             string nom = Console.ReadLine();
-            
+
             Console.Write("Prénom : ");
             string prenom = Console.ReadLine();
-            
+
             Console.Write("Adresse : ");
             string adresse = Console.ReadLine();
-            
+
             Console.Write("Téléphone : ");
             string telephone = Console.ReadLine();
-            
+
             Console.Write("Email : ");
             string email = Console.ReadLine();
-            
+
             try
             {
-                using (SqlConnection connection = new SqlConnection(connectionString))
+                string query = "INSERT INTO Cuisinier (nom, prenom, adresse, telephone, email) VALUES (@nom, @prenom, @adresse, @telephone, @email)";
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+                cmd.Parameters.AddWithValue("@nom", nom);
+                cmd.Parameters.AddWithValue("@prenom", prenom);
+                cmd.Parameters.AddWithValue("@adresse", adresse);
+                cmd.Parameters.AddWithValue("@telephone", telephone);
+                cmd.Parameters.AddWithValue("@email", email);
+
+                int rowsAffected = cmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
                 {
-                    connection.Open();
-                    string query = "INSERT INTO Cuisinier (nom, prenom, adresse, telephone, email) VALUES (@nom, @prenom, @adresse, @telephone, @email)";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
-                    {
-                        command.Parameters.AddWithValue("@nom", nom);
-                        command.Parameters.AddWithValue("@prenom", prenom);
-                        command.Parameters.AddWithValue("@adresse", adresse);
-                        command.Parameters.AddWithValue("@telephone", telephone);
-                        command.Parameters.AddWithValue("@email", email);
-                        
-                        int result = command.ExecuteNonQuery();
-                        if (result > 0)
-                            Console.WriteLine("Cuisinier ajouté avec succès !");
-                        else
-                            Console.WriteLine("Erreur lors de l'ajout du cuisinier.");
-                    }
+                    Console.WriteLine("Cuisinier ajouté avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Erreur lors de l'ajout du cuisinier.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1062) // Duplicate entry for email
+                {
+                    Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
                 }
             }
             catch (Exception ex)
@@ -565,88 +658,104 @@ namespace LivInParisApp
             }
         }
 
-        static void ModifierCuisinier()
+        private static void ModifierCuisinier()
         {
-            Console.WriteLine("\n=== MODIFIER UN CUISINIER ===");
-            
-            Console.Write("ID du cuisinier à modifier : ");
+            Console.WriteLine("=== Modification d'un cuisinier ===");
+
+            Console.Write("Entrez l'ID du cuisinier à modifier : ");
             if (!int.TryParse(Console.ReadLine(), out int idCuisinier))
             {
                 Console.WriteLine("ID invalide.");
                 return;
             }
-            
-            // Vérifier si le cuisinier existe
-            if (!CuisinierExiste(idCuisinier))
-            {
-                Console.WriteLine("Cuisinier non trouvé.");
-                return;
-            }
-            
-            Console.Write("Nouveau nom (laissez vide pour ne pas modifier) : ");
-            string nom = Console.ReadLine();
-            
-            Console.Write("Nouveau prénom (laissez vide pour ne pas modifier) : ");
-            string prenom = Console.ReadLine();
-            
-            Console.Write("Nouvelle adresse (laissez vide pour ne pas modifier) : ");
-            string adresse = Console.ReadLine();
-            
-            Console.Write("Nouveau téléphone (laissez vide pour ne pas modifier) : ");
-            string telephone = Console.ReadLine();
-            
-            Console.Write("Nouvel email (laissez vide pour ne pas modifier) : ");
-            string email = Console.ReadLine();
-            
+
             try
             {
-                using (SqlConnection connection = new SqlConnection(connectionString))
+                // Vérifier si le cuisinier existe
+                string checkQuery = "SELECT * FROM Cuisinier WHERE id_cuisinier = @id";
+                MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
+                checkCmd.Parameters.AddWithValue("@id", idCuisinier);
+
+                using (MySqlDataReader reader = checkCmd.ExecuteReader())
                 {
-                    connection.Open();
-                    string query = "UPDATE Cuisinier SET ";
-                    List<string> updateFields = new List<string>();
-                    
-                    if (!string.IsNullOrWhiteSpace(nom))
-                        updateFields.Add("nom = @nom");
-                    if (!string.IsNullOrWhiteSpace(prenom))
-                        updateFields.Add("prenom = @prenom");
-                    if (!string.IsNullOrWhiteSpace(adresse))
-                        updateFields.Add("adresse = @adresse");
-                    if (!string.IsNullOrWhiteSpace(telephone))
-                        updateFields.Add("telephone = @telephone");
-                    if (!string.IsNullOrWhiteSpace(email))
-                        updateFields.Add("email = @email");
-                    
-                    if (updateFields.Count == 0)
+                    if (!reader.Read())
                     {
-                        Console.WriteLine("Aucune modification à appliquer.");
+                        Console.WriteLine("Cuisinier non trouvé.");
                         return;
                     }
-                    
-                    query += string.Join(", ", updateFields);
-                    query += " WHERE id_cuisinier = @idCuisinier";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
+
+                    Console.WriteLine($"Modification du cuisinier: {reader["prenom"]} {reader["nom"]}");
+                }
+
+                Console.WriteLine("Entrez les nouvelles informations (laissez vide pour conserver la valeur actuelle):");
+
+                // Récupérer les valeurs actuelles
+                string currentQuery = "SELECT * FROM Cuisinier WHERE id_cuisinier = @id";
+                MySqlCommand currentCmd = new MySqlCommand(currentQuery, connection);
+                currentCmd.Parameters.AddWithValue("@id", idCuisinier);
+
+                string currentNom = "", currentPrenom = "", currentAdresse = "", currentTelephone = "", currentEmail = "";
+
+                using (MySqlDataReader reader = currentCmd.ExecuteReader())
+                {
+                    if (reader.Read())
                     {
-                        command.Parameters.AddWithValue("@idCuisinier", idCuisinier);
-                        
-                        if (!string.IsNullOrWhiteSpace(nom))
-                            command.Parameters.AddWithValue("@nom", nom);
-                        if (!string.IsNullOrWhiteSpace(prenom))
-                            command.Parameters.AddWithValue("@prenom", prenom);
-                        if (!string.IsNullOrWhiteSpace(adresse))
-                            command.Parameters.AddWithValue("@adresse", adresse);
-                        if (!string.IsNullOrWhiteSpace(telephone))
-                            command.Parameters.AddWithValue("@telephone", telephone);
-                        if (!string.IsNullOrWhiteSpace(email))
-                            command.Parameters.AddWithValue("@email", email);
-                        
-                        int result = command.ExecuteNonQuery();
-                        if (result > 0)
-                            Console.WriteLine("Cuisinier modifié avec succès !");
-                        else
-                            Console.WriteLine("Erreur lors de la modification du cuisinier.");
+                        currentNom = reader["nom"].ToString();
+                        currentPrenom = reader["prenom"].ToString();
+                        currentAdresse = reader["adresse"].ToString();
+                        currentTelephone = reader["telephone"].ToString();
+                        currentEmail = reader["email"].ToString();
                     }
+                }
+
+                Console.Write($"Nom [{currentNom}] : ");
+                string nom = Console.ReadLine();
+                nom = string.IsNullOrWhiteSpace(nom) ? currentNom : nom;
+
+                Console.Write($"Prénom [{currentPrenom}] : ");
+                string prenom = Console.ReadLine();
+                prenom = string.IsNullOrWhiteSpace(prenom) ? currentPrenom : prenom;
+
+                Console.Write($"Adresse [{currentAdresse}] : ");
+                string adresse = Console.ReadLine();
+                adresse = string.IsNullOrWhiteSpace(adresse) ? currentAdresse : adresse;
+
+                Console.Write($"Téléphone [{currentTelephone}] : ");
+                string telephone = Console.ReadLine();
+                telephone = string.IsNullOrWhiteSpace(telephone) ? currentTelephone : telephone;
+
+                Console.Write($"Email [{currentEmail}] : ");
+                string email = Console.ReadLine();
+                email = string.IsNullOrWhiteSpace(email) ? currentEmail : email;
+
+                string updateQuery = "UPDATE Cuisinier SET nom = @nom, prenom = @prenom, adresse = @adresse, telephone = @telephone, email = @email WHERE id_cuisinier = @id";
+                MySqlCommand updateCmd = new MySqlCommand(updateQuery, connection);
+                updateCmd.Parameters.AddWithValue("@nom", nom);
+                updateCmd.Parameters.AddWithValue("@prenom", prenom);
+                updateCmd.Parameters.AddWithValue("@adresse", adresse);
+                updateCmd.Parameters.AddWithValue("@telephone", telephone);
+                updateCmd.Parameters.AddWithValue("@email", email);
+                updateCmd.Parameters.AddWithValue("@id", idCuisinier);
+
+                int rowsAffected = updateCmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
+                {
+                    Console.WriteLine("Cuisinier modifié avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Aucune modification n'a été effectuée.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1062) // Duplicate entry for email
+                {
+                    Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
                 }
             }
             catch (Exception ex)
@@ -655,170 +764,144 @@ namespace LivInParisApp
             }
         }
 
-        static void SupprimerCuisinier()
+        private static void SupprimerCuisinier()
         {
-            Console.WriteLine("\n=== SUPPRIMER UN CUISINIER ===");
-            
-            Console.Write("ID du cuisinier à supprimer : ");
+            Console.WriteLine("=== Suppression d'un cuisinier ===");
+
+            Console.Write("Entrez l'ID du cuisinier à supprimer : ");
             if (!int.TryParse(Console.ReadLine(), out int idCuisinier))
             {
                 Console.WriteLine("ID invalide.");
                 return;
             }
-            
-            // Vérifier si le cuisinier existe
-            if (!CuisinierExiste(idCuisinier))
-            {
-                Console.WriteLine("Cuisinier non trouvé.");
-                return;
-            }
-            
-            Console.Write("Êtes-vous sûr de vouloir supprimer ce cuisinier ? (O/N) : ");
-            if (Console.ReadLine().ToUpper() != "O")
-            {
-                Console.WriteLine("Suppression annulée.");
-                return;
-            }
-            
+
             try
             {
-                using (SqlConnection connection = new SqlConnection(connectionString))
+                // Vérifier si le cuisinier existe
+                string checkQuery = "SELECT * FROM Cuisinier WHERE id_cuisinier = @id";
+                MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
+                checkCmd.Parameters.AddWithValue("@id", idCuisinier);
+
+                using (MySqlDataReader reader = checkCmd.ExecuteReader())
                 {
-                    connection.Open();
-                    string query = "DELETE FROM Cuisinier WHERE id_cuisinier = @idCuisinier";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
+                    if (!reader.Read())
                     {
-                        command.Parameters.AddWithValue("@idCuisinier", idCuisinier);
-                        
-                        int result = command.ExecuteNonQuery();
-                        if (result > 0)
-                            Console.WriteLine("Cuisinier supprimé avec succès !");
-                        else
-                            Console.WriteLine("Erreur lors de la suppression du cuisinier.");
+                        Console.WriteLine("Cuisinier non trouvé.");
+                        return;
                     }
+
+                    Console.WriteLine($"Vous êtes sur le point de supprimer le cuisinier: {reader["prenom"]} {reader["nom"]}");
+                }
+
+                Console.Write("Êtes-vous sûr ? (O/N) : ");
+                string confirmation = Console.ReadLine().ToUpper();
+
+                if (confirmation != "O" && confirmation != "OUI")
+                {
+                    Console.WriteLine("Suppression annulée.");
+                    return;
+                }
+
+                string deleteQuery = "DELETE FROM Cuisinier WHERE id_cuisinier = @id";
+                MySqlCommand deleteCmd = new MySqlCommand(deleteQuery, connection);
+                deleteCmd.Parameters.AddWithValue("@id", idCuisinier);
+
+                int rowsAffected = deleteCmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
+                {
+                    Console.WriteLine("Cuisinier supprimé avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Aucun cuisinier n'a été supprimé.");
                 }
             }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1451) // Foreign key constraint
+                {
+                    Console.WriteLine("Erreur: Ce cuisinier ne peut pas être supprimé car il est lié à des commandes ou des plats.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
+                }
+            }
+ 
             catch (Exception ex)
             {
                 Console.WriteLine($"Erreur: {ex.Message}");
             }
         }
+        #endregion
 
-        static void AfficherCuisiniers()
+        #region Module Commande
+        private static void ModuleCommande()
         {
-            Console.WriteLine("\n=== LISTE DES CUISINIERS ===");
-            
+            Console.Clear();
+            Console.WriteLine("===== MODULE COMMANDE =====");
+            // Exemple de stub pour ce module.
+            Console.WriteLine("Module Commande non implémenté pour le moment.");
+        }
+        #endregion
+
+        #region Module Statistiques
+        private static void ModuleStatistiques()
+        {
+            Console.Clear();
+            Console.WriteLine("===== MODULE STATISTIQUES =====");
+            // Exemple de stub pour ce module.
+            Console.WriteLine("Module Statistiques non implémenté pour le moment.");
+        }
+        #endregion
+
+        #region Module Trajet
+        private static void ModuleTrajet()
+        {
+            Console.Clear();
+            Console.WriteLine("===== MODULE TRAJET =====");
+            // Exemple d'utilisation du graphe défini dans LivInParisApp
             try
             {
-                using (SqlConnection connection = new SqlConnection(connectionString))
-                {
-                    connection.Open();
-                    string query = "SELECT id_cuisinier, nom, prenom, adresse, telephone, email FROM Cuisinier ORDER BY nom, prenom";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
-                    {
-                        using (SqlDataReader reader = command.ExecuteReader())
-                        {
-                            if (!reader.HasRows)
-                            {
-                                Console.WriteLine("Aucun cuisinier trouvé.");
-                                return;
-                            }
-                            
-                            Console.WriteLine("ID | Nom | Prénom | Adresse | Téléphone | Email");
-                            Console.WriteLine("---------------------------------------------------");
-                            
-                            while (reader.Read())
-                            {
-                                Console.WriteLine($"{reader["id_cuisinier"]} | {reader["nom"]} | {reader["prenom"]} | {reader["adresse"]} | {reader["telephone"]} | {reader["email"]}");
-                            }
-                        }
-                    }
-                }
+                // Création d'un graphe simple représentant des stations de métro
+                var graphe = new LivInParisApp.Graphe<string>(estOriente: false);
+
+                // Charger les données du CSV
+                string cheminFichier = "chemin/vers/votre/fichier.csv"; // Remplacez par le chemin réel de votre fichier CSV
+                graphe.ChargerDonneesCSV(cheminFichier);
+
+                // Affichage d'un parcours en largeur
+                var parcours = graphe.ParcoursLargeur("A");
+                Console.WriteLine("Parcours en largeur à partir de A : " + string.Join(", ", parcours));
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Erreur: {ex.Message}");
+                Console.WriteLine("Erreur dans le module Trajet : " + ex.Message);
             }
         }
 
-        static void AfficherClientsServisParCuisinier()
+        #endregion
+
+        #region Module Export
+        private static void ModuleExport()
         {
-            Console.WriteLine("\n=== CLIENTS SERVIS PAR UN CUISINIER ===");
-            
-            Console.Write("ID du cuisinier : ");
-            if (!int.TryParse(Console.ReadLine(), out int idCuisinier))
+            Console.Clear();
+            Console.WriteLine("===== MODULE EXPORT (JSON/XML) =====");
+            // Exemple d'export en JSON
+            Console.WriteLine("Exportation en JSON...");
+            var data = new { Message = "Hello World", Date = DateTime.Now };
+            string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+            Console.WriteLine(json);
+
+            // Exportation en XML
+            Console.WriteLine("\nExportation en XML...");
+            XmlSerializer serializer = new XmlSerializer(data.GetType());
+            using (StringWriter writer = new StringWriter())
             {
-                Console.WriteLine("ID invalide.");
-                return;
+                serializer.Serialize(writer, data);
+                Console.WriteLine(writer.ToString());
             }
-            
-            // Vérifier si le cuisinier existe
-            if (!CuisinierExiste(idCuisinier))
-            {
-                Console.WriteLine("Cuisinier non trouvé.");
-                return;
-            }
-            
-            // Proposer de filtrer par période
-            Console.Write("Filtrer par période ? (O/N) : ");
-            bool filtrerParPeriode = Console.ReadLine().ToUpper() == "O";
-            
-            DateTime dateDebut = DateTime.MinValue;
-            DateTime dateFin = DateTime.MaxValue;
-            
-            if (filtrerParPeriode)
-            {
-                Console.Write("Date de début (JJ/MM/AAAA) : ");
-                if (!DateTime.TryParseExact(Console.ReadLine(), "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out dateDebut))
-                {
-                    Console.WriteLine("Format de date invalide. Utilisation de la date minimale.");
-                    dateDebut = DateTime.MinValue;
-                }
-                
-                Console.Write("Date de fin (JJ/MM/AAAA) : ");
-                if (!DateTime.TryParseExact(Console.ReadLine(), "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out dateFin))
-                {
-                    Console.WriteLine("Format de date invalide. Utilisation de la date maximale.");
-                    dateFin = DateTime.MaxValue;
-                }
-            }
-            
-            try
-            {
-                using (SqlConnection connection = new SqlConnection(connectionString))
-                {
-                    connection.Open();
-                    string query = @"
-                        SELECT DISTINCT c.id_client, c.nom, c.prenom, c.adresse, c.telephone, c.email,
-                               COUNT(cmd.id_commande) AS nombre_commandes,
-                               MAX(cmd.date_commande) AS derniere_commande
-                        FROM Client c
-                        INNER JOIN Commande cmd ON c.id_client = cmd.id_client
-                        WHERE cmd.id_cuisinier = @idCuisinier
-                        AND (@filtrerParPeriode = 0 OR (cmd.date_commande BETWEEN @dateDebut AND @dateFin))
-                        GROUP BY c.id_client, c.nom, c.prenom, c.adresse, c.telephone, c.email
-                        ORDER BY nombre_commandes DESC, derniere_commande DESC";
-                    
-                    using (SqlCommand command = new SqlCommand(query, connection))
-                    {
-                        command.Parameters.AddWithValue("@idCuisinier", idCuisinier);
-                        command.Parameters.AddWithValue("@filtrerParPeriode", filtrerParPeriode ? 1 : 0);
-                        command.Parameters.AddWithValue("@dateDebut", dateDebut);
-                        command.Parameters.AddWithValue("@dateFin", dateFin);
-                        
-                        using (SqlDataReader reader = command.ExecuteReader())
-                        {
-                            if (!reader.HasRows)
-                            {
-                                Console.WriteLine("Aucun client n'a été servi par ce cuisinier pour la période spécifiée.");
-                                return;
-                            }
-                            
-                            Console.WriteLine("ID | Nom | Prénom | Nb Commandes | Dernière Commande | Adresse | Téléphone | Email");
-                            Console.WriteLine("------------------------------------------------------------------------------------");
-                            
-                            while (reader.Read())
-                            {
-                                DateTime derniere
+        }
+        #endregion
+    }
+}
