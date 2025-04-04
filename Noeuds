@@ -9,12 +9,12 @@ namespace LivInParisApp
         public string Nom { get; set; }
         public double Latitude { get; set; }
         public double Longitude { get; set; }
-        public int LigneMetro { get; set; }
+        public string LigneMetro { get; set; }
 
         // Liste des voisins avec poids (temps de trajet)
         public Dictionary<Noeud<T>, double> Voisins { get; set; }
 
-        public Noeud(T data, string nom, double latitude, double longitude, int ligneMetro)
+        public Noeud(T data, string nom, double latitude, double longitude, string ligneMetro)
         {
             Data = data;
             Nom = nom;
