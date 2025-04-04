@@ -1,0 +1,494 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace LivInParisApp
+{
+    public partial class MetroGUI : Form
+    {
+        private Graphe<string> metroGraph;
+        private Dictionary<string, PointF> stationCoordinates;
+        private Dictionary<int, Color> lineColors;
+        private List<Noeud<string>> pathToDisplay;
+
+        public MetroGUI()
+        {
+            InitializeComponent();
+
+            // Initialize graph and data structures
+            metroGraph = new Graphe<string>(true);
+            stationCoordinates = new Dictionary<string, PointF>();
+            lineColors = new Dictionary<int, Color>();
+            pathToDisplay = new List<Noeud<string>>();
+
+            // Define metro line colors
+            InitializeLineColors();
+
+            // Load metro data
+            LoadMetroData();
+
+            // Set up the UI
+            SetupUI();
+        }
+
+        // Add the missing InitializeComponent method
+        private void InitializeComponent()
+        {
+            this.SuspendLayout();
+            // 
+            // MetroGUI
+            // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.ClientSize = new System.Drawing.Size(1200, 800);
+            this.Name = "MetroGUI";
+            this.Text = "Paris Metro Map";
+            this.ResumeLayout(false);
+        }
+
+        private void InitializeLineColors()
+        {
+            // Standard colors for Paris Metro lines
+            lineColors.Add(1, Color.FromArgb(255, 255, 206, 0));    // Line 1: Yellow
+            lineColors.Add(2, Color.FromArgb(255, 0, 0, 255));      // Line 2: Blue
+            lineColors.Add(3, Color.FromArgb(255, 152, 107, 42));   // Line 3: Brown
+            lineColors.Add(4, Color.FromArgb(255, 190, 50, 137));   // Line 4: Purple
+            lineColors.Add(5, Color.FromArgb(255, 255, 137, 0));    // Line 5: Orange
+            lineColors.Add(6, Color.FromArgb(255, 118, 180, 67));   // Line 6: Light Green
+            lineColors.Add(7, Color.FromArgb(255, 230, 134, 161));  // Line 7: Pink
+            lineColors.Add(8, Color.FromArgb(255, 144, 89, 156));   // Line 8: Lilac
+            lineColors.Add(9, Color.FromArgb(255, 180, 186, 10));   // Line 9: Green-Yellow
+            lineColors.Add(10, Color.FromArgb(255, 223, 176, 117)); // Line 10: Light Brown
+            lineColors.Add(11, Color.FromArgb(255, 142, 85, 0));    // Line 11: Brown
+            lineColors.Add(12, Color.FromArgb(255, 0, 150, 67));    // Line 12: Green
+            lineColors.Add(13, Color.FromArgb(255, 140, 200, 255)); // Line 13: Light Blue
+            lineColors.Add(14, Color.FromArgb(255, 103, 46, 144));  // Line 14: Purple
+        }
+
+        private void LoadMetroData()
+        {
+            try
+            {
+                // Load stations data (coordinates)
+                LoadStationsData("C:/Users/ruben/OneDrive/Documents/noeuds projet PSI.csv");
+
+                // Load connections data
+                LoadConnectionsData("C:/Users/ruben/OneDrive/Documents/arcs projet PSI.csv");
+
+                // Generate correspondences
+                metroGraph.ChargerCorrespondances();
+
+                Console.WriteLine("Metro data loaded successfully.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading metro data: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void LoadStationsData(string fileName)
+        {
+            if (!File.Exists(fileName))
+            {
+                MessageBox.Show($"File not found: {fileName}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string[] lines = File.ReadAllLines(fileName);
+            bool isFirstLine = true;
+
+            foreach (string line in lines)
+            {
+                if (isFirstLine)
+                {
+                    isFirstLine = false;
+                    continue; // Skip header
+                }
+
+                string[] data = line.Split(';');
+                if (data.Length >= 7)
+                {
+                    // Utilisation de la chaîne directement pour l'ID, par exemple "3bis"
+                    string stationId = data[0].Trim();
+                    string lineId = data[1].Trim();
+                    string stationName = data[2];
+                    double longitude = double.Parse(data[3], CultureInfo.InvariantCulture);
+                    double latitude = double.Parse(data[4], CultureInfo.InvariantCulture);
+
+                    // Créer le nœud en passant l’identifiant de station dans StationId
+                    Noeud<string> node = new Noeud<string>(stationId, stationName, longitude, latitude, lineId);
+                    metroGraph.AjouterNoeud(node);
+
+                    // Conversion des coordonnées géographiques en coordonnées écran
+                    float x = (float)((longitude - 2.225) * 2000);
+                    float y = (float)((48.90 - latitude) * 2000);
+                    stationCoordinates[stationId] = new PointF(x, y);
+                }
+            }
+        }
+
+
+
+        private void LoadConnectionsData(string fileName)
+{
+    if (!File.Exists(fileName))
+    {
+        MessageBox.Show($"File not found: {fileName}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        return;
+    }
+
+    string[] lines = File.ReadAllLines(fileName);
+    bool isFirstLine = true;
+    // Créer un dictionnaire de stations par ID (chaîne)
+    Dictionary<string, Noeud<string>> stationsById = new Dictionary<string, Noeud<string>>();
+
+    foreach (Noeud<string> node in metroGraph.Noeuds)
+    {
+        // Ici, il faudrait disposer d'une propriété « StationId » dans Noeud.
+        // Si ce n'est pas le cas, on peut supposer que le nom de la station est unique, ou modifier la classe Noeud.
+        // Pour cet exemple, nous utilisons le nom comme clé.
+        if (!stationsById.ContainsKey(node.Nom))
+        {
+            stationsById[node.Nom] = node;
+        }
+    }
+
+    foreach (string line in lines)
+    {
+        if (isFirstLine)
+        {
+            isFirstLine = false;
+            continue; // Skip header
+        }
+
+        string[] data = line.Split(';');
+        if (data.Length >= 6)
+        {
+            // Ici, on récupère l'ID sous forme de chaîne
+            string stationId = data[0].Trim();
+            string prevId = string.IsNullOrEmpty(data[2]) ? null : data[2].Trim();
+            string nextId = string.IsNullOrEmpty(data[3]) ? null : data[3].Trim();
+            double travelTime = double.Parse(data[4], CultureInfo.InvariantCulture);
+
+            // Pour la correspondance, nous recherchons par nom dans ce simple exemple.
+            if (stationsById.TryGetValue(stationId, out Noeud<string> currentStation))
+            {
+                if (prevId != null && travelTime > 0)
+                {
+                    if (stationsById.TryGetValue(prevId, out Noeud<string> prevStation))
+                    {
+                        metroGraph.AjouterLien(currentStation, prevStation, travelTime);
+                    }
+                }
+
+                if (nextId != null && travelTime > 0)
+                {
+                    if (stationsById.TryGetValue(nextId, out Noeud<string> nextStation))
+                    {
+                        metroGraph.AjouterLien(currentStation, nextStation, travelTime);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+        private void SetupUI()
+        {
+            // Panel for drawing the metro map
+            Panel mapPanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.White,
+                AutoScroll = true
+            };
+            mapPanel.Paint += MapPanel_Paint;
+
+            // Source station combobox
+            ComboBox sourceComboBox = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 200
+            };
+
+            // Destination station combobox
+            ComboBox destComboBox = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 200
+            };
+
+            // Algorithm selection
+            ComboBox algoComboBox = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 200
+            };
+            algoComboBox.Items.AddRange(new object[] { "Dijkstra", "Bellman-Ford", "Floyd-Warshall" });
+            algoComboBox.SelectedIndex = 0;
+
+            // Find path button
+            Button findPathButton = new Button
+            {
+                Text = "Find Path",
+                Width = 100
+            };
+            findPathButton.Click += (sender, e) => FindPath(sourceComboBox, destComboBox, algoComboBox);
+
+            // Results label
+            Label resultsLabel = new Label
+            {
+                AutoSize = true,
+                Text = "Path results will appear here..."
+            };
+
+            // Populate station comboboxes
+            foreach (var node in metroGraph.Noeuds.OrderBy(n => n.Nom))
+            {
+                string displayText = $"{node.Nom} (Line {node.LigneMetro})";
+                sourceComboBox.Items.Add(new ComboBoxItem { Text = displayText, Value = node });
+                destComboBox.Items.Add(new ComboBoxItem { Text = displayText, Value = node });
+            }
+
+            if (sourceComboBox.Items.Count > 0)
+            {
+                sourceComboBox.SelectedIndex = 0;
+                destComboBox.SelectedIndex = Math.Min(1, destComboBox.Items.Count - 1);
+            }
+
+            // Create control panel
+            TableLayoutPanel controlPanel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(10),
+                ColumnCount = 6,
+                RowCount = 2
+            };
+
+            controlPanel.Controls.Add(new Label { Text = "Source:", AutoSize = true }, 0, 0);
+            controlPanel.Controls.Add(sourceComboBox, 1, 0);
+            controlPanel.Controls.Add(new Label { Text = "Destination:", AutoSize = true }, 2, 0);
+            controlPanel.Controls.Add(destComboBox, 3, 0);
+            controlPanel.Controls.Add(new Label { Text = "Algorithm:", AutoSize = true }, 4, 0);
+            controlPanel.Controls.Add(algoComboBox, 5, 0);
+            controlPanel.Controls.Add(findPathButton, 0, 1);
+            controlPanel.Controls.Add(resultsLabel, 1, 1);
+            controlPanel.SetColumnSpan(resultsLabel, 5);
+
+            // Results panel for displaying path information
+            TextBox resultsTextBox = new TextBox
+            {
+                Dock = DockStyle.Bottom,
+                Multiline = true,
+                Height = 150,
+                ScrollBars = ScrollBars.Vertical,
+                ReadOnly = true
+            };
+
+            // Add controls to form
+            this.Controls.Add(mapPanel);
+            this.Controls.Add(controlPanel);
+            this.Controls.Add(resultsTextBox);
+
+            // Set form properties
+            this.Text = "Paris Metro Map";
+            this.Size = new Size(1200, 800);
+            this.StartPosition = FormStartPosition.CenterScreen;
+        }
+
+        private void MapPanel_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            // Dessiner les connexions entre stations
+            foreach (var node in metroGraph.Noeuds)
+            {
+                // Utiliser l'identifiant de station stocké dans Data comme clé
+                string stationKey = node.Data;
+                if (stationCoordinates.TryGetValue(stationKey, out PointF nodePos))
+                {
+                    foreach (var neighbor in node.Voisins)
+                    {
+                        string neighborKey = neighbor.Key.Data;
+                        if (stationCoordinates.TryGetValue(neighborKey, out PointF neighborPos))
+                        {
+                            // Si la connexion est sur la même ligne, utiliser la couleur de la ligne
+                            if (node.LigneMetro == neighbor.Key.LigneMetro)
+                            {
+                                // On convertit la chaîne LigneMetro en entier pour trouver la couleur
+                                Color lineColor = lineColors.TryGetValue(int.Parse(node.LigneMetro), out Color color) ? color : Color.Gray;
+                                using (Pen pen = new Pen(lineColor, 3))
+                                {
+                                    g.DrawLine(pen, nodePos, neighborPos);
+                                }
+                            }
+                            else
+                            {
+                                // Différentes lignes : dessiner une ligne en pointillés
+                                using (Pen pen = new Pen(Color.Black, 1))
+                                {
+                                    pen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
+                                    g.DrawLine(pen, nodePos, neighborPos);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Dessiner le chemin trouvé (s'il y en a un)
+            if (pathToDisplay.Count > 1)
+            {
+                using (Pen pathPen = new Pen(Color.Red, 4))
+                {
+                    for (int i = 0; i < pathToDisplay.Count - 1; i++)
+                    {
+                        string key1 = pathToDisplay[i].Data;
+                        string key2 = pathToDisplay[i + 1].Data;
+                        if (stationCoordinates.TryGetValue(key1, out PointF pos1) &&
+                            stationCoordinates.TryGetValue(key2, out PointF pos2))
+                        {
+                            g.DrawLine(pathPen, pos1, pos2);
+                        }
+                    }
+                }
+            }
+
+            // Dessiner les stations
+            foreach (var kv in stationCoordinates)
+            {
+                string stationKey = kv.Key;
+                PointF pos = kv.Value;
+
+                // Trouver le nœud correspondant en comparant les identifiants de station (Data)
+                Noeud<string> node = metroGraph.Noeuds.FirstOrDefault(n => n.Data == stationKey);
+                if (node != null)
+                {
+                    Color stationColor = lineColors.TryGetValue(int.Parse(node.LigneMetro), out Color color) ? color : Color.Gray;
+                    using (SolidBrush brush = new SolidBrush(stationColor))
+                    {
+                        g.FillEllipse(brush, pos.X - 5, pos.Y - 5, 10, 10);
+                    }
+                    using (SolidBrush textBrush = new SolidBrush(Color.Black))
+                    {
+                        g.DrawString(node.Nom, SystemFonts.DefaultFont, textBrush, pos.X + 7, pos.Y - 7);
+                    }
+                    if (pathToDisplay.Contains(node))
+                    {
+                        using (Pen highlightPen = new Pen(Color.Red, 2))
+                        {
+                            g.DrawEllipse(highlightPen, pos.X - 7, pos.Y - 7, 14, 14);
+                        }
+                    }
+                }
+            }
+        }
+
+
+        private void FindPath(ComboBox sourceComboBox, ComboBox destComboBox, ComboBox algoComboBox)
+        {
+            if (sourceComboBox.SelectedItem == null || destComboBox.SelectedItem == null)
+            {
+                MessageBox.Show("Please select source and destination stations.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            Noeud<string> sourceNode = ((ComboBoxItem)sourceComboBox.SelectedItem).Value;
+            Noeud<string> destNode = ((ComboBoxItem)destComboBox.SelectedItem).Value;
+            string algorithm = algoComboBox.SelectedItem.ToString();
+
+            // Clear previous path
+            pathToDisplay.Clear();
+
+            // Find path using selected algorithm
+            DateTime startTime = DateTime.Now;
+            List<Noeud<string>> path = null;
+
+            switch (algorithm)
+            {
+                case "Dijkstra":
+                    path = metroGraph.Dijkstra(sourceNode, destNode);
+                    break;
+                case "Bellman-Ford":
+                    path = metroGraph.BellmanFord(sourceNode, destNode);
+                    break;
+                case "Floyd-Warshall":
+                    path = metroGraph.FloydWarshall(sourceNode, destNode);
+                    break;
+            }
+
+            TimeSpan executionTime = DateTime.Now - startTime;
+
+            // Store the path for drawing
+            if (path != null && path.Count > 0)
+            {
+                pathToDisplay = path;
+            }
+
+            // Display path information
+            TextBox resultsTextBox = this.Controls.OfType<TextBox>().FirstOrDefault();
+            if (resultsTextBox != null)
+            {
+                if (path == null || path.Count == 0)
+                {
+                    resultsTextBox.Text = $"No path found from {sourceNode.Nom} to {destNode.Nom}.";
+                }
+                else
+                {
+                    double totalTime = 0;
+                    string results = $"Path from {sourceNode.Nom} to {destNode.Nom} using {algorithm}:\r\n";
+                    results += $"Execution time: {executionTime.TotalMilliseconds:F2} ms\r\n\r\n";
+
+                    for (int i = 0; i < path.Count; i++)
+                    {
+                        results += $"{i + 1}. {path[i].Nom} (Line {path[i].LigneMetro})\r\n";
+
+                        if (i < path.Count - 1)
+                        {
+                            double segmentTime = path[i].Voisins[path[i + 1]];
+                            totalTime += segmentTime;
+
+                            if (path[i].LigneMetro != path[i + 1].LigneMetro)
+                            {
+                                results += $"   Correspondence: Line {path[i].LigneMetro} → Line {path[i + 1].LigneMetro} ({segmentTime:F1} min)\r\n";
+                            }
+                            else
+                            {
+                                results += $"   → ({segmentTime:F1} min)\r\n";
+                            }
+                        }
+                    }
+
+                    results += $"\r\nTotal estimated travel time: {totalTime:F1} minutes";
+                    resultsTextBox.Text = results;
+                }
+            }
+
+            // Refresh the map panel to show the path
+            Panel mapPanel = this.Controls.OfType<Panel>().FirstOrDefault();
+            if (mapPanel != null)
+            {
+                mapPanel.Invalidate();
+            }
+        }
+
+        // Helper class for combobox items
+        private class ComboBoxItem
+        {
+            public string Text { get; set; }
+            public Noeud<string> Value { get; set; }
+
+            public override string ToString()
+            {
+                return Text;
+            }
+        }
+    }
+}
