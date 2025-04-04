@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace LivInParisApp
 {
     public class Graphe<T>
     {
+        private Dictionary<int, double> _tempsChangementMapping = new Dictionary<int, double>();
+
         public List<Noeud<T>> Noeuds { get; private set; }
         public bool EstOriente { get; private set; }
 
@@ -20,6 +23,192 @@ namespace LivInParisApp
             if (!Noeuds.Contains(noeud))
             {
                 Noeuds.Add(noeud);
+            }
+        }
+        public void AfficherGraphe()
+        {
+            Console.WriteLine("Contenu du graphe :");
+
+            // Trier les nœuds par ID pour l'affichage
+            var noeudsTriesParId = Noeuds.OrderBy(n => n.LigneMetro).ToList();
+
+            foreach (var noeud in noeudsTriesParId)
+            {
+                Console.WriteLine($"Station: {noeud.Nom} (ID: {noeud.LigneMetro})");
+
+                // Trier les voisins par ID également
+                var voisinsTriesParId = noeud.Voisins.OrderBy(v => v.Key.LigneMetro).ToList();
+
+                foreach (var voisin in voisinsTriesParId)
+                {
+                    string typeConnection = noeud.LigneMetro == voisin.Key.LigneMetro ? "Même ligne" : "Correspondance";
+                    Console.WriteLine($"  -> Voisin: {voisin.Key.Nom} (ID: {voisin.Key.LigneMetro}), Temps: {voisin.Value} min, Type: {typeConnection}");
+                }
+
+                Console.WriteLine(); // Ligne vide pour améliorer la lisibilité
+            }
+        }
+
+        public void ChargerDonneesCSV(string cheminFichier)
+        {
+            try
+            {
+                string[] lignes = System.IO.File.ReadAllLines(cheminFichier);
+                bool premiereLigne = true;
+                Dictionary<int, Noeud<T>> stationsParId = new Dictionary<int, Noeud<T>>();
+                _tempsChangementMapping.Clear();
+
+                // Première passe : créer tous les nœuds
+                foreach (string ligne in lignes)
+                {
+                    if (premiereLigne)
+                    {
+                        premiereLigne = false;
+                        continue; // Ignorer l'en-tête
+                    }
+
+                    string[] donnees = ligne.Split(';');
+                    if (donnees.Length >= 6)
+                    {
+                        int idStation = int.Parse(donnees[0]);
+                        string nomStation = donnees[1];
+                        double tempsChangement = double.Parse(donnees[5], CultureInfo.InvariantCulture);
+
+                        // Créer le nœud s'il n'existe pas déjà
+                        if (!stationsParId.ContainsKey(idStation))
+                        {
+                            // Utiliser l'ID comme LigneMetro pour identifier la station
+                            Noeud<T> nouveauNoeud = new Noeud<T>(default(T), nomStation, 0, 0, idStation);
+                            stationsParId.Add(idStation, nouveauNoeud);
+                            AjouterNoeud(nouveauNoeud);
+                            _tempsChangementMapping[idStation] = tempsChangement;
+                        }
+                    }
+                }
+
+                // Deuxième passe : créer les connexions entre les stations
+                premiereLigne = true;
+                foreach (string ligne in lignes)
+                {
+                    if (premiereLigne)
+                    {
+                        premiereLigne = false;
+                        continue;
+                    }
+
+                    string[] donnees = ligne.Split(';');
+                    if (donnees.Length >= 6)
+                    {
+                        int idStation = int.Parse(donnees[0]);
+                        int? idPrecedent = string.IsNullOrEmpty(donnees[2]) ? (int?)null : int.Parse(donnees[2]);
+                        int? idSuivant = string.IsNullOrEmpty(donnees[3]) ? (int?)null : int.Parse(donnees[3]);
+                        double tempsEntreStations = double.Parse(donnees[4], CultureInfo.InvariantCulture);
+
+                        Noeud<T> stationActuelle = stationsParId[idStation];
+
+                        // Ajouter le lien vers la station précédente si elle existe
+                        if (idPrecedent.HasValue && tempsEntreStations > 0)
+                        {
+                            if (stationsParId.ContainsKey(idPrecedent.Value))
+                            {
+                                Noeud<T> stationPrecedente = stationsParId[idPrecedent.Value];
+                                AjouterLien(stationActuelle, stationPrecedente, tempsEntreStations);
+                            }
+                        }
+
+                        // Ajouter le lien vers la station suivante si elle existe
+                        if (idSuivant.HasValue && tempsEntreStations > 0)
+                        {
+                            if (stationsParId.ContainsKey(idSuivant.Value))
+                            {
+                                Noeud<T> stationSuivante = stationsParId[idSuivant.Value];
+                                AjouterLien(stationActuelle, stationSuivante, tempsEntreStations);
+                            }
+                        }
+                    }
+                }
+
+                // Troisième étape : générer les correspondances entre stations de même nom
+                Console.WriteLine("Création des correspondances entre stations...");
+                ChargerCorrespondances();
+
+                Console.WriteLine($"Chargement terminé. {stationsParId.Count} stations créées avec leurs connexions.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur lors du chargement des données CSV: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+            }
+        }
+
+        private void ChargerCorrespondances()
+        {
+            try
+            {
+                // Regrouper les stations par nom
+                Dictionary<string, List<Noeud<T>>> stationsParNom = new Dictionary<string, List<Noeud<T>>>();
+
+                foreach (Noeud<T> noeud in Noeuds)
+                {
+                    // Ignorer les stations sans nom (pour éviter des erreurs)
+                    if (string.IsNullOrWhiteSpace(noeud.Nom))
+                        continue;
+
+                    if (!stationsParNom.ContainsKey(noeud.Nom))
+                    {
+                        stationsParNom[noeud.Nom] = new List<Noeud<T>>();
+                    }
+                    stationsParNom[noeud.Nom].Add(noeud);
+                }
+
+                // Traiter les correspondances pour les stations qui ont le même nom mais des IDs différents
+                int correspondancesCreees = 0;
+                foreach (var nomStation in stationsParNom.Keys)
+                {
+                    var stationsMemeNom = stationsParNom[nomStation];
+
+                    // S'il y a plusieurs stations avec le même nom, on crée des correspondances
+                    if (stationsMemeNom.Count > 1)
+                    {
+                        Console.WriteLine($"Création de correspondances pour la station : {nomStation} ({stationsMemeNom.Count} lignes)");
+
+                        for (int i = 0; i < stationsMemeNom.Count; i++)
+                        {
+                            for (int j = i + 1; j < stationsMemeNom.Count; j++)
+                            {
+                                Noeud<T> station1 = stationsMemeNom[i];
+                                Noeud<T> station2 = stationsMemeNom[j];
+
+                                // Récupérer les temps de changement pour chaque ligne
+                                double tempsChangement1 = _tempsChangementMapping.TryGetValue(station1.LigneMetro, out double tc1) ? tc1 : 3.0;
+                                double tempsChangement2 = _tempsChangementMapping.TryGetValue(station2.LigneMetro, out double tc2) ? tc2 : 3.0;
+
+                                // Pour calculer le temps de correspondance, on fait la moyenne des deux temps
+                                // Cela représente le temps nécessaire pour passer d'une ligne à l'autre
+                                double tempsCorrespondance = (tempsChangement1 + tempsChangement2) / 2.0;
+
+                                // S'assurer que le temps n'est pas nul ou négatif
+                                if (tempsCorrespondance <= 0)
+                                    tempsCorrespondance = 3.0; // Valeur par défaut si temps non valide
+
+                                // Créer des liens dans les deux sens pour la correspondance
+                                AjouterLien(station1, station2, tempsCorrespondance);
+                                AjouterLien(station2, station1, tempsCorrespondance);
+
+                                correspondancesCreees++;
+
+                                Console.WriteLine($"  Correspondance: {station1.Nom} (ID: {station1.LigneMetro}) <--> {station2.Nom} (ID: {station2.LigneMetro}), Temps: {tempsCorrespondance} min");
+                            }
+                        }
+                    }
+                }
+
+                Console.WriteLine($"Total des correspondances créées: {correspondancesCreees}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur lors du chargement des correspondances: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
             }
         }
 
@@ -41,169 +230,7 @@ namespace LivInParisApp
                 destination.AjouterVoisin(source, poids);
             }
         }
-
-        // Charger les données du métro à partir d'un fichier
-        public void ChargerDonneesMetro(string cheminFichier)
-        {
-            try
-            {
-                string[] lignes = System.IO.File.ReadAllLines(cheminFichier);
-                bool premiereLigne = true;
-
-                // Dictionnaire pour conserver les stations déjà créées
-                Dictionary<string, Noeud<T>> stationsExistantes = new Dictionary<string, Noeud<T>>();
-
-                foreach (string ligne in lignes)
-                {
-                    // Ignorer l'en-tête
-                    if (premiereLigne)
-                    {
-                        premiereLigne = false;
-                        continue;
-                    }
-
-                    string[] donnees = ligne.Split(';');
-
-                    // Structure attendue du fichier CSV : ID_Station;Nom;Ligne;Latitude;Longitude;ID_Suivante;Temps_Vers_Suivante;ID_Precedente;Temps_Vers_Precedente
-                    if (donnees.Length >= 9)
-                    {
-                        string idStation = donnees[0];
-                        string nomStation = donnees[1];
-                        int ligneMetro = int.Parse(donnees[2]);
-                        double latitude = double.Parse(donnees[3], System.Globalization.CultureInfo.InvariantCulture);
-                        double longitude = double.Parse(donnees[4], System.Globalization.CultureInfo.InvariantCulture);
-
-                        string idSuivante = donnees[5];
-                        double tempsSuivante = string.IsNullOrEmpty(donnees[6]) ? 0 : double.Parse(donnees[6], System.Globalization.CultureInfo.InvariantCulture);
-
-                        string idPrecedente = donnees[7];
-                        double tempsPrecedente = string.IsNullOrEmpty(donnees[8]) ? 0 : double.Parse(donnees[8], System.Globalization.CultureInfo.InvariantCulture);
-
-                        // Créer ou récupérer le noeud actuel
-                        string cleStation = $"{nomStation}_{ligneMetro}";
-                        if (!stationsExistantes.ContainsKey(cleStation))
-                        {
-                            Noeud<T> noeudActuel = new Noeud<T>(default(T), nomStation, latitude, longitude, ligneMetro);
-                            stationsExistantes.Add(cleStation, noeudActuel);
-                            AjouterNoeud(noeudActuel);
-                        }
-
-                        // Traiter les liens vers la station suivante
-                        if (!string.IsNullOrEmpty(idSuivante) && tempsSuivante > 0)
-                        {
-                            // Chercher la station suivante dans le fichier
-                            foreach (string autreLigne in lignes)
-                            {
-                                if (autreLigne.StartsWith(idSuivante + ";"))
-                                {
-                                    string[] donneesAutre = autreLigne.Split(';');
-                                    string nomAutre = donneesAutre[1];
-                                    int ligneAutre = int.Parse(donneesAutre[2]);
-                                    double latAutre = double.Parse(donneesAutre[3], System.Globalization.CultureInfo.InvariantCulture);
-                                    double longAutre = double.Parse(donneesAutre[4], System.Globalization.CultureInfo.InvariantCulture);
-
-                                    string cleAutre = $"{nomAutre}_{ligneAutre}";
-                                    if (!stationsExistantes.ContainsKey(cleAutre))
-                                    {
-                                        Noeud<T> noeudAutre = new Noeud<T>(default(T), nomAutre, latAutre, longAutre, ligneAutre);
-                                        stationsExistantes.Add(cleAutre, noeudAutre);
-                                        AjouterNoeud(noeudAutre);
-                                    }
-
-                                    AjouterLien(stationsExistantes[cleStation], stationsExistantes[cleAutre], tempsSuivante);
-                                    break;
-                                }
-                            }
-                        }
-
-                        // Traiter les liens vers la station précédente
-                        if (!string.IsNullOrEmpty(idPrecedente) && tempsPrecedente > 0)
-                        {
-                            // Chercher la station précédente dans le fichier
-                            foreach (string autreLigne in lignes)
-                            {
-                                if (autreLigne.StartsWith(idPrecedente + ";"))
-                                {
-                                    string[] donneesAutre = autreLigne.Split(';');
-                                    string nomAutre = donneesAutre[1];
-                                    int ligneAutre = int.Parse(donneesAutre[2]);
-                                    double latAutre = double.Parse(donneesAutre[3], System.Globalization.CultureInfo.InvariantCulture);
-                                    double longAutre = double.Parse(donneesAutre[4], System.Globalization.CultureInfo.InvariantCulture);
-
-                                    string cleAutre = $"{nomAutre}_{ligneAutre}";
-                                    if (!stationsExistantes.ContainsKey(cleAutre))
-                                    {
-                                        Noeud<T> noeudAutre = new Noeud<T>(default(T), nomAutre, latAutre, longAutre, ligneAutre);
-                                        stationsExistantes.Add(cleAutre, noeudAutre);
-                                        AjouterNoeud(noeudAutre);
-                                    }
-
-                                    AjouterLien(stationsExistantes[cleStation], stationsExistantes[cleAutre], tempsPrecedente);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Ajouter les correspondances entre stations
-                ChargerCorrespondances(cheminFichier);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erreur lors du chargement des données métro: {ex.Message}");
-            }
-        }
-
-        private void ChargerCorrespondances(string cheminFichier)
-        {
-            try
-            {
-                string[] lignes = System.IO.File.ReadAllLines(cheminFichier);
-                bool premiereLigne = true;
-
-                // Correspondances entre stations de même nom mais de lignes différentes
-                Dictionary<string, List<Noeud<T>>> stationsParNom = new Dictionary<string, List<Noeud<T>>>();
-
-                // Regrouper les stations par nom
-                foreach (Noeud<T> noeud in Noeuds)
-                {
-                    if (!stationsParNom.ContainsKey(noeud.Nom))
-                    {
-                        stationsParNom[noeud.Nom] = new List<Noeud<T>>();
-                    }
-                    stationsParNom[noeud.Nom].Add(noeud);
-                }
-
-                // Ajouter les correspondances entre lignes
-                foreach (var nomStation in stationsParNom.Keys)
-                {
-                    if (stationsParNom[nomStation].Count > 1)
-                    {
-                        // Stations de correspondance
-                        for (int i = 0; i < stationsParNom[nomStation].Count; i++)
-                        {
-                            for (int j = i + 1; j < stationsParNom[nomStation].Count; j++)
-                            {
-                                Noeud<T> station1 = stationsParNom[nomStation][i];
-                                Noeud<T> station2 = stationsParNom[nomStation][j];
-
-                                // Temps de correspondance (par défaut 3 minutes)
-                                double tempsCorrespondance = 3.0;
-
-                                // Ajouter les liens bidirectionnels pour les correspondances
-                                AjouterLien(station1, station2, tempsCorrespondance);
-                                AjouterLien(station2, station1, tempsCorrespondance);
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erreur lors du chargement des correspondances: {ex.Message}");
-            }
-        }
+        
 
         // Recherche du plus court chemin avec l'algorithme de Dijkstra
         public List<Noeud<T>> Dijkstra(Noeud<T> source, Noeud<T> destination)
@@ -269,34 +296,6 @@ namespace LivInParisApp
             }
 
             return chemin;
-        }
-
-        public List<Noeud<T>> ParcoursLargeur(T dataInitial)
-        {
-            var depart = Noeuds.FirstOrDefault(n => n.Data.Equals(dataInitial));
-            if (depart == null)
-                return new List<Noeud<T>>();
-
-            var parcours = new List<Noeud<T>>();
-            var fifo = new Queue<Noeud<T>>();
-            var visites = new HashSet<Noeud<T>>();
-
-            fifo.Enqueue(depart);
-            visites.Add(depart);
-            while (fifo.Count > 0)
-            {
-                var courant = fifo.Dequeue();
-                parcours.Add(courant);
-                foreach (var voisin in courant.Voisins.Keys)
-                {
-                    if (!visites.Contains(voisin))
-                    {
-                        fifo.Enqueue(voisin);
-                        visites.Add(voisin);
-                    }
-                }
-            }
-            return parcours;
         }
 
 
@@ -468,7 +467,7 @@ namespace LivInParisApp
             Console.WriteLine($"Bellman-Ford: {tempsBellman} ms - Complexité O(V*E)");
             Console.WriteLine($"Floyd-Warshall: {tempsFloyd} ms - Complexité O(V^3)");
 
-            Console.WriteLine("\nAnalyse:");
+            Console.WriteLine("\nConculsion:");
             Console.WriteLine("- Dijkstra est généralement le plus rapide pour les graphes sans poids négatifs.");
             Console.WriteLine("- Bellman-Ford peut gérer les poids négatifs mais est plus lent que Dijkstra.");
             Console.WriteLine("- Floyd-Warshall calcule tous les chemins les plus courts entre toutes les paires de sommets, ce qui le rend utile pour des requêtes multiples mais plus lent pour une seule requête.");
@@ -504,78 +503,6 @@ namespace LivInParisApp
             }
 
             Console.WriteLine($"Temps total estimé: {tempsTotal} minutes");
-        }
-        public void ChargerDonneesCSV(string cheminFichier)
-        {
-            try
-            {
-                string[] lignes = System.IO.File.ReadAllLines(cheminFichier);
-                bool premiereLigne = true;
-
-                // Dictionnaire pour conserver les stations déjà créées
-                Dictionary<int, Noeud<T>> stationsExistantes = new Dictionary<int, Noeud<T>>();
-
-                foreach (string ligne in lignes)
-                {
-                    // Ignorer l'en-tête
-                    if (premiereLigne)
-                    {
-                        premiereLigne = false;
-                        continue;
-                    }
-
-                    string[] donnees = ligne.Split(';');
-
-                    // Structure attendue du fichier CSV : Station Id;Station;Précédent;Suivant;Temps entre 2 stations;Temps de Changement
-                    if (donnees.Length >= 6)
-                    {
-                        int idStation = int.Parse(donnees[0]);
-                        string nomStation = donnees[1];
-                        int? idPrecedent = string.IsNullOrEmpty(donnees[2]) ? (int?)null : int.Parse(donnees[2]);
-                        int? idSuivant = string.IsNullOrEmpty(donnees[3]) ? (int?)null : int.Parse(donnees[3]);
-                        double tempsEntreStations = double.Parse(donnees[4], System.Globalization.CultureInfo.InvariantCulture);
-                        double tempsChangement = double.Parse(donnees[5], System.Globalization.CultureInfo.InvariantCulture);
-
-                        // Créer ou récupérer le noeud actuel
-                        if (!stationsExistantes.ContainsKey(idStation))
-                        {
-                            Noeud<T> noeudActuel = new Noeud<T>(default(T), nomStation, 0, 0, idStation);
-                            stationsExistantes.Add(idStation, noeudActuel);
-                            AjouterNoeud(noeudActuel);
-                        }
-
-                        // Traiter les liens vers la station suivante
-                        if (idSuivant.HasValue && tempsEntreStations > 0)
-                        {
-                            if (!stationsExistantes.ContainsKey(idSuivant.Value))
-                            {
-                                Noeud<T> noeudSuivant = new Noeud<T>(default(T), donnees[3], 0, 0, idSuivant.Value);
-                                stationsExistantes.Add(idSuivant.Value, noeudSuivant);
-                                AjouterNoeud(noeudSuivant);
-                            }
-
-                            AjouterLien(stationsExistantes[idStation], stationsExistantes[idSuivant.Value], tempsEntreStations);
-                        }
-
-                        // Traiter les liens vers la station précédente
-                        if (idPrecedent.HasValue && tempsEntreStations > 0)
-                        {
-                            if (!stationsExistantes.ContainsKey(idPrecedent.Value))
-                            {
-                                Noeud<T> noeudPrecedent = new Noeud<T>(default(T), donnees[2], 0, 0, idPrecedent.Value);
-                                stationsExistantes.Add(idPrecedent.Value, noeudPrecedent);
-                                AjouterNoeud(noeudPrecedent);
-                            }
-
-                            AjouterLien(stationsExistantes[idStation], stationsExistantes[idPrecedent.Value], tempsEntreStations);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erreur lors du chargement des données CSV: {ex.Message}");
-            }
         }
     }
 }
