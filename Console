@@ -31,10 +31,8 @@ namespace LivInParisApp
                     Console.WriteLine("1. Module Client");
                     Console.WriteLine("2. Module Cuisinier");
                     Console.WriteLine("3. Module Commande");
-                    Console.WriteLine("4. Module Statistiques");
-                    Console.WriteLine("5. Module Trajet");
-                    Console.WriteLine("6. Module Export (JSON/XML)");
-                    Console.WriteLine("7. Quitter");
+                    Console.WriteLine("4. Module Trajet");
+                    Console.WriteLine("5. Quitter");
                     Console.Write("Votre choix : ");
 
                     string choice = Console.ReadLine();
@@ -52,26 +50,14 @@ namespace LivInParisApp
                             ModuleCommande();
                             break;
                         case "4":
-                            ModuleStatistiques();
-                            break;
-                        case "5":
                             ModuleTrajet();
                             break;
                         case "6":
-                            ModuleExport();
-                            break;
-                        case "7":
                             exit = true;
                             break;
                         default:
                             Console.WriteLine("Option invalide. Veuillez réessayer.");
                             break;
-                    }
-
-                    if (!exit)
-                    {
-                        Console.WriteLine("\nAppuyez sur une touche pour continuer...");
-                        Console.ReadKey();
                     }
                 }
 
@@ -95,11 +81,9 @@ namespace LivInParisApp
                 Console.WriteLine("1. Ajouter un client");
                 Console.WriteLine("2. Modifier un client");
                 Console.WriteLine("3. Supprimer un client");
-                Console.WriteLine("4. Afficher tous les clients (ordre alphabétique)");
+                Console.WriteLine("4. Afficher tous les clients");
                 Console.WriteLine("5. Afficher les clients par rue");
-                Console.WriteLine("6. Afficher les clients par montant d'achats");
-                Console.WriteLine("7. Importer des clients depuis un fichier CSV");
-                Console.WriteLine("8. Retour au menu principal");
+                Console.WriteLine("6. Retour au menu principal");
                 Console.Write("Votre choix : ");
 
                 string choice = Console.ReadLine();
@@ -123,12 +107,6 @@ namespace LivInParisApp
                         AfficherClientsParRue();
                         break;
                     case "6":
-                        AfficherClientsParMontantAchats();
-                        break;
-                    case "7":
-                        ImporterClientsCSV();
-                        break;
-                    case "8":
                         retour = true;
                         break;
                     default:
@@ -438,124 +416,7 @@ namespace LivInParisApp
                 Console.WriteLine($"Erreur: {ex.Message}");
             }
         }
-
-        private static void AfficherClientsParMontantAchats()
-        {
-            Console.WriteLine("=== Liste des clients par montant d'achats ===");
-
-            try
-            {
-                string query = @"
-                    SELECT c.id_client, c.nom, c.prenom, c.adresse, c.telephone, c.email, 
-                           IFNULL(SUM(co.prix_total), 0) as total_achats
-                    FROM Client c
-                    LEFT JOIN Commande co ON c.id_client = co.id_client
-                    GROUP BY c.id_client
-                    ORDER BY total_achats DESC";
-
-                MySqlCommand cmd = new MySqlCommand(query, connection);
-
-                using (MySqlDataReader reader = cmd.ExecuteReader())
-                {
-                    if (!reader.HasRows)
-                    {
-                        Console.WriteLine("Aucun client trouvé.");
-                        return;
-                    }
-
-                    Console.WriteLine("ID\tNom\t\tPrénom\t\tTotal Achats\tAdresse\t\t\tTéléphone\tEmail");
-                    Console.WriteLine(new string('-', 120));
-
-                    while (reader.Read())
-                    {
-                        decimal totalAchats = Convert.ToDecimal(reader["total_achats"]);
-                        Console.WriteLine($"{reader["id_client"]}\t{reader["nom"],-15}{reader["prenom"],-15}{totalAchats:C2,-15}{reader["adresse"],-30}{reader["telephone"],-15}{reader["email"]}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erreur: {ex.Message}");
-            }
-        }
-
-        private static void ImporterClientsCSV()
-        {
-            Console.WriteLine("=== Importation de clients depuis un fichier CSV ===");
-
-            Console.Write("Entrez le chemin du fichier CSV : ");
-            string filePath = Console.ReadLine();
-
-            if (!File.Exists(filePath))
-            {
-                Console.WriteLine("Le fichier spécifié n'existe pas.");
-                return;
-            }
-
-            try
-            {
-                int importCount = 0;
-                int errorCount = 0;
-
-                using (StreamReader reader = new StreamReader(filePath))
-                {
-                    string line = reader.ReadLine(); // Skip header if exists
-
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        string[] values = line.Split(',');
-
-                        if (values.Length < 5)
-                        {
-                            Console.WriteLine($"Ligne ignorée (format incorrect): {line}");
-                            errorCount++;
-                            continue;
-                        }
-
-                        string nom = values[0].Trim();
-                        string prenom = values[1].Trim();
-                        string adresse = values[2].Trim();
-                        string telephone = values[3].Trim();
-                        string email = values[4].Trim();
-
-                        try
-                        {
-                            string query = "INSERT INTO Client (nom, prenom, adresse, telephone, email) VALUES (@nom, @prenom, @adresse, @telephone, @email)";
-                            MySqlCommand cmd = new MySqlCommand(query, connection);
-                            cmd.Parameters.AddWithValue("@nom", nom);
-                            cmd.Parameters.AddWithValue("@prenom", prenom);
-                            cmd.Parameters.AddWithValue("@adresse", adresse);
-                            cmd.Parameters.AddWithValue("@telephone", telephone);
-                            cmd.Parameters.AddWithValue("@email", email);
-
-                            int rowsAffected = cmd.ExecuteNonQuery();
-                            if (rowsAffected > 0)
-                            {
-                                importCount++;
-                            }
-                        }
-                        catch (MySqlException ex)
-                        {
-                            if (ex.Number == 1062) // Duplicate entry for email
-                            {
-                                Console.WriteLine($"Email déjà existant: {email}");
-                            }
-                            else
-                            {
-                                Console.WriteLine($"Erreur MySQL: {ex.Message}");
-                            }
-                            errorCount++;
-                        }
-                    }
-                }
-
-                Console.WriteLine($"Importation terminée. {importCount} clients importés, {errorCount} erreurs.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erreur lors de l'importation: {ex.Message}");
-            }
-        }
+        
         #endregion
 
         #region Module Cuisinier
@@ -845,63 +706,76 @@ namespace LivInParisApp
         }
         #endregion
 
-        #region Module Statistiques
-        private static void ModuleStatistiques()
-        {
-            Console.Clear();
-            Console.WriteLine("===== MODULE STATISTIQUES =====");
-            // Exemple de stub pour ce module.
-            Console.WriteLine("Module Statistiques non implémenté pour le moment.");
-        }
-        #endregion
-
         #region Module Trajet
         private static void ModuleTrajet()
         {
             Console.Clear();
             Console.WriteLine("===== MODULE TRAJET =====");
-            // Exemple d'utilisation du graphe défini dans LivInParisApp
+
             try
             {
                 // Création d'un graphe simple représentant des stations de métro
                 var graphe = new LivInParisApp.Graphe<string>(estOriente: false);
 
                 // Charger les données du CSV
-                string cheminFichier = "chemin/vers/votre/fichier.csv"; // Remplacez par le chemin réel de votre fichier CSV
+                string cheminFichier = "C:/Users/ruben/OneDrive/Documents/arcs projet PSI.csv"; // Remplacez par le chemin réel
                 graphe.ChargerDonneesCSV(cheminFichier);
 
-                // Affichage d'un parcours en largeur
-                var parcours = graphe.ParcoursLargeur("A");
-                Console.WriteLine("Parcours en largeur à partir de A : " + string.Join(", ", parcours));
+                // Sous-menu pour choisir l'action
+                Console.WriteLine("Choisissez une action :");
+                Console.WriteLine("1. Afficher le graphe");
+                Console.WriteLine("2. Comparer les algorithmes de recherche du plus court chemin");
+                Console.Write("Votre choix : ");
+                string subChoice = Console.ReadLine();
+                Console.WriteLine();
+
+                switch (subChoice)
+                {
+                    case "1":
+                        graphe.AfficherGraphe();
+                        break;
+                    case "2":
+                        ComparerCheminsAvecInput(graphe);
+                        break;
+                    default:
+                        Console.WriteLine("Option invalide.");
+                        break;
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Erreur dans le module Trajet : " + ex.Message);
             }
+
+            Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+            Console.ReadKey();
         }
 
-        #endregion
-
-        #region Module Export
-        private static void ModuleExport()
+        private static void ComparerCheminsAvecInput(LivInParisApp.Graphe<string> graphe)
         {
-            Console.Clear();
-            Console.WriteLine("===== MODULE EXPORT (JSON/XML) =====");
-            // Exemple d'export en JSON
-            Console.WriteLine("Exportation en JSON...");
-            var data = new { Message = "Hello World", Date = DateTime.Now };
-            string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
-            Console.WriteLine(json);
+            Console.Write("Entrez la station de départ (par défaut 'Porte Maillot') : ");
+            string departInput = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(departInput))
+                departInput = "Porte Maillot";
 
-            // Exportation en XML
-            Console.WriteLine("\nExportation en XML...");
-            XmlSerializer serializer = new XmlSerializer(data.GetType());
-            using (StringWriter writer = new StringWriter())
+            Console.Write("Entrez la station d'arrivée (par défaut 'Argentine') : ");
+            string arriveeInput = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(arriveeInput))
+                arriveeInput = "Argentine";
+
+            var source = graphe.Noeuds.FirstOrDefault(n => n.Nom.Equals(departInput, StringComparison.InvariantCultureIgnoreCase));
+            var destination = graphe.Noeuds.FirstOrDefault(n => n.Nom.Equals(arriveeInput, StringComparison.InvariantCultureIgnoreCase));
+
+            if (source != null && destination != null)
             {
-                serializer.Serialize(writer, data);
-                Console.WriteLine(writer.ToString());
+                graphe.ComparerAlgorithmes(source, destination);
+            }
+            else
+            {
+                Console.WriteLine("Les stations de départ ou d'arrivée sont introuvables.");
             }
         }
+
         #endregion
     }
 }
