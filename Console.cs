@@ -6,6 +6,8 @@ using System.Linq;
 using MySql.Data.MySqlClient;
 using System.Text.Json;
 using System.Xml.Serialization;
+using System.Windows.Forms; // N'oubliez pas cette référence !
+using PSI; // Pour accéder à Metro_GUI
 
 namespace LivInParisApp
 {
@@ -33,7 +35,7 @@ namespace LivInParisApp
                     Console.WriteLine("1. Module Client");
                     Console.WriteLine("2. Module Cuisinier");
                     Console.WriteLine("3. Module Commande");
-                    Console.WriteLine("4. Module Trajet");
+                    Console.WriteLine("4. Module Trajet (Interface Graphique)");
                     Console.WriteLine("5. Quitter");
                     Console.Write("Votre choix : ");
 
@@ -54,7 +56,7 @@ namespace LivInParisApp
                         case "4":
                             ModuleTrajet();
                             break;
-                        case "6":
+                        case "5":
                             exit = true;
                             break;
                         default:
@@ -165,7 +167,7 @@ namespace LivInParisApp
             }
             catch (MySqlException ex)
             {
-                if (ex.Number == 1062) // Duplicate entry for email
+                if (ex.Number == 1062)
                 {
                     Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
                 }
@@ -193,7 +195,6 @@ namespace LivInParisApp
 
             try
             {
-                // Vérifier si le client existe
                 string checkQuery = "SELECT * FROM Client WHERE id_client = @id";
                 MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
                 checkCmd.Parameters.AddWithValue("@id", idClient);
@@ -205,19 +206,16 @@ namespace LivInParisApp
                         Console.WriteLine("Client non trouvé.");
                         return;
                     }
-
                     Console.WriteLine($"Modification du client: {reader["prenom"]} {reader["nom"]}");
                 }
 
                 Console.WriteLine("Entrez les nouvelles informations (laissez vide pour conserver la valeur actuelle):");
 
-                // Récupérer les valeurs actuelles
                 string currentQuery = "SELECT * FROM Client WHERE id_client = @id";
                 MySqlCommand currentCmd = new MySqlCommand(currentQuery, connection);
                 currentCmd.Parameters.AddWithValue("@id", idClient);
 
                 string currentNom = "", currentPrenom = "", currentAdresse = "", currentTelephone = "", currentEmail = "";
-
                 using (MySqlDataReader reader = currentCmd.ExecuteReader())
                 {
                     if (reader.Read())
@@ -271,7 +269,7 @@ namespace LivInParisApp
             }
             catch (MySqlException ex)
             {
-                if (ex.Number == 1062) // Duplicate entry for email
+                if (ex.Number == 1062)
                 {
                     Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
                 }
@@ -299,7 +297,6 @@ namespace LivInParisApp
 
             try
             {
-                // Vérifier si le client existe
                 string checkQuery = "SELECT * FROM Client WHERE id_client = @id";
                 MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
                 checkCmd.Parameters.AddWithValue("@id", idClient);
@@ -311,13 +308,11 @@ namespace LivInParisApp
                         Console.WriteLine("Client non trouvé.");
                         return;
                     }
-
                     Console.WriteLine($"Vous êtes sur le point de supprimer le client: {reader["prenom"]} {reader["nom"]}");
                 }
 
                 Console.Write("Êtes-vous sûr ? (O/N) : ");
                 string confirmation = Console.ReadLine().ToUpper();
-
                 if (confirmation != "O" && confirmation != "OUI")
                 {
                     Console.WriteLine("Suppression annulée.");
@@ -340,7 +335,7 @@ namespace LivInParisApp
             }
             catch (MySqlException ex)
             {
-                if (ex.Number == 1451) // Foreign key constraint
+                if (ex.Number == 1451)
                 {
                     Console.WriteLine("Erreur: Ce client ne peut pas être supprimé car il est lié à des commandes.");
                 }
@@ -418,7 +413,6 @@ namespace LivInParisApp
                 Console.WriteLine($"Erreur: {ex.Message}");
             }
         }
-        
         #endregion
 
         #region Module Cuisinier
@@ -506,7 +500,7 @@ namespace LivInParisApp
             }
             catch (MySqlException ex)
             {
-                if (ex.Number == 1062) // Duplicate entry for email
+                if (ex.Number == 1062)
                 {
                     Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
                 }
@@ -534,7 +528,6 @@ namespace LivInParisApp
 
             try
             {
-                // Vérifier si le cuisinier existe
                 string checkQuery = "SELECT * FROM Cuisinier WHERE id_cuisinier = @id";
                 MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
                 checkCmd.Parameters.AddWithValue("@id", idCuisinier);
@@ -546,19 +539,16 @@ namespace LivInParisApp
                         Console.WriteLine("Cuisinier non trouvé.");
                         return;
                     }
-
                     Console.WriteLine($"Modification du cuisinier: {reader["prenom"]} {reader["nom"]}");
                 }
 
                 Console.WriteLine("Entrez les nouvelles informations (laissez vide pour conserver la valeur actuelle):");
 
-                // Récupérer les valeurs actuelles
                 string currentQuery = "SELECT * FROM Cuisinier WHERE id_cuisinier = @id";
                 MySqlCommand currentCmd = new MySqlCommand(currentQuery, connection);
                 currentCmd.Parameters.AddWithValue("@id", idCuisinier);
 
                 string currentNom = "", currentPrenom = "", currentAdresse = "", currentTelephone = "", currentEmail = "";
-
                 using (MySqlDataReader reader = currentCmd.ExecuteReader())
                 {
                     if (reader.Read())
@@ -612,7 +602,7 @@ namespace LivInParisApp
             }
             catch (MySqlException ex)
             {
-                if (ex.Number == 1062) // Duplicate entry for email
+                if (ex.Number == 1062)
                 {
                     Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
                 }
@@ -640,7 +630,6 @@ namespace LivInParisApp
 
             try
             {
-                // Vérifier si le cuisinier existe
                 string checkQuery = "SELECT * FROM Cuisinier WHERE id_cuisinier = @id";
                 MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
                 checkCmd.Parameters.AddWithValue("@id", idCuisinier);
@@ -652,13 +641,11 @@ namespace LivInParisApp
                         Console.WriteLine("Cuisinier non trouvé.");
                         return;
                     }
-
                     Console.WriteLine($"Vous êtes sur le point de supprimer le cuisinier: {reader["prenom"]} {reader["nom"]}");
                 }
 
                 Console.Write("Êtes-vous sûr ? (O/N) : ");
                 string confirmation = Console.ReadLine().ToUpper();
-
                 if (confirmation != "O" && confirmation != "OUI")
                 {
                     Console.WriteLine("Suppression annulée.");
@@ -681,7 +668,7 @@ namespace LivInParisApp
             }
             catch (MySqlException ex)
             {
-                if (ex.Number == 1451) // Foreign key constraint
+                if (ex.Number == 1451)
                 {
                     Console.WriteLine("Erreur: Ce cuisinier ne peut pas être supprimé car il est lié à des commandes ou des plats.");
                 }
@@ -690,7 +677,6 @@ namespace LivInParisApp
                     Console.WriteLine($"Erreur MySQL: {ex.Message}");
                 }
             }
- 
             catch (Exception ex)
             {
                 Console.WriteLine($"Erreur: {ex.Message}");
@@ -703,7 +689,6 @@ namespace LivInParisApp
         {
             Console.Clear();
             Console.WriteLine("===== MODULE COMMANDE =====");
-            // Exemple de stub pour ce module.
             Console.WriteLine("Module Commande non implémenté pour le moment.");
         }
         #endregion
@@ -716,17 +701,17 @@ namespace LivInParisApp
 
             try
             {
-                // Création d'un graphe simple représentant des stations de métro
+                // Création d'un graphe orienté à partir des données CSV
                 var graphe = new LivInParisApp.Graphe<string>(estOriente: false);
 
-                // Charger les données du CSV
+                // Charger les données depuis le CSV
                 string cheminFichier = "C:/Users/ruben/OneDrive/Documents/arcs projet PSI.csv"; // Remplacez par le chemin réel
                 graphe.ChargerDonneesCSV(cheminFichier);
 
-                // Sous-menu pour choisir l'action
+                // Sous-menu pour le module Trajet
                 Console.WriteLine("Choisissez une action :");
-                Console.WriteLine("1. Afficher le graphe");
-                Console.WriteLine("2. Comparer les algorithmes de recherche du plus court chemin");
+                Console.WriteLine("1. Lancer l'interface graphique (Metro_GUI)");
+                Console.WriteLine("2. Comparer les algorithmes du plus court chemin");
                 Console.Write("Votre choix : ");
                 string subChoice = Console.ReadLine();
                 Console.WriteLine();
@@ -734,8 +719,8 @@ namespace LivInParisApp
                 switch (subChoice)
                 {
                     case "1":
-                        graphe.AfficherGraphe();
-                        Application.Run(new MetroGUI());
+                        // Lancer l'interface graphique Metro_GUI
+                        Application.Run(new Metro_GUI());
                         break;
                     case "2":
                         ComparerCheminsAvecInput(graphe);
@@ -778,7 +763,6 @@ namespace LivInParisApp
                 Console.WriteLine("Les stations de départ ou d'arrivée sont introuvables.");
             }
         }
-
         #endregion
     }
 }
