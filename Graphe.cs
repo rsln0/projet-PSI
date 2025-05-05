@@ -8,9 +8,14 @@ namespace LivInParisApp
     public class Graphe<T>
     {
         private Dictionary<int, double> _tempsChangementMapping = new Dictionary<int, double>();
+        // Dictionnaire pour stocker les stations uniques par nom
+        private Dictionary<string, Noeud<T>> _stationsUniques = new Dictionary<string, Noeud<T>>();
 
         public List<Noeud<T>> Noeuds { get; private set; }
         public bool EstOriente { get; private set; }
+
+        // Dictionnaire pour suivre les lignes par station
+        private Dictionary<string, HashSet<string>> _lignesParStation = new Dictionary<string, HashSet<string>>();
 
         public Graphe(bool estOriente = true)
         {
@@ -25,6 +30,7 @@ namespace LivInParisApp
                 Noeuds.Add(noeud);
             }
         }
+
         public void AfficherGraphe()
         {
             Console.WriteLine("Contenu du graphe :");
@@ -34,19 +40,36 @@ namespace LivInParisApp
 
             foreach (var noeud in noeudsTriesParId)
             {
-                Console.WriteLine($"Station: {noeud.Nom} (Ligne: {noeud.LigneMetro})");
+                // Afficher toutes les lignes associées à la station
+                string lignes = GetLignesForStation(noeud.Nom);
+                Console.WriteLine($"Station: {noeud.Nom} (Lignes: {lignes})");
 
                 // Trier les voisins par ID également
                 var voisinsTriesParId = noeud.Voisins.OrderBy(v => v.Key.LigneMetro).ToList();
 
                 foreach (var voisin in voisinsTriesParId)
                 {
-                    string typeConnection = noeud.LigneMetro == voisin.Key.LigneMetro ? "Même ligne" : "Correspondance";
-                    Console.WriteLine($"  -> Voisin: {voisin.Key.Nom} (Ligne: {voisin.Key.LigneMetro}), Temps: {voisin.Value} min, Type: {typeConnection}");
+                    string typeConnection = "Liaison";
+                    if (_lignesParStation.ContainsKey(noeud.Nom) && _lignesParStation.ContainsKey(voisin.Key.Nom))
+                    {
+                        // Vérifier si les stations partagent une ligne commune
+                        bool partageLigne = _lignesParStation[noeud.Nom].Intersect(_lignesParStation[voisin.Key.Nom]).Any();
+                        typeConnection = partageLigne ? "Même ligne" : "Correspondance";
+                    }
+                    Console.WriteLine($"  -> Voisin: {voisin.Key.Nom}, Temps: {voisin.Value} min, Type: {typeConnection}");
                 }
 
                 Console.WriteLine(); // Ligne vide pour améliorer la lisibilité
             }
+        }
+
+        private string GetLignesForStation(string nomStation)
+        {
+            if (_lignesParStation.ContainsKey(nomStation))
+            {
+                return string.Join(", ", _lignesParStation[nomStation]);
+            }
+            return string.Empty;
         }
 
         public void ChargerDonneesCSV(string cheminFichier)
@@ -55,10 +78,14 @@ namespace LivInParisApp
             {
                 string[] lignes = System.IO.File.ReadAllLines(cheminFichier);
                 bool premiereLigne = true;
-                Dictionary<int, Noeud<T>> stationsParId = new Dictionary<int, Noeud<T>>();
+                Dictionary<int, int> idVersIdUnique = new Dictionary<int, int>();
+                Dictionary<int, string> idVersNom = new Dictionary<int, string>();
+                Dictionary<int, string> idVersLigne = new Dictionary<int, string>();
                 _tempsChangementMapping.Clear();
+                _stationsUniques.Clear();
+                _lignesParStation.Clear();
 
-                // Première passe : créer tous les nœuds
+                // Première passe : créer les nœuds uniques par nom de station
                 foreach (string ligne in lignes)
                 {
                     if (premiereLigne)
@@ -75,14 +102,29 @@ namespace LivInParisApp
                         string ligneMetro = donnees[2].Trim();
                         double tempsChangement = double.Parse(donnees[5], CultureInfo.InvariantCulture);
 
-                        // Créer le nœud s'il n'existe pas déjà
-                        if (!stationsParId.ContainsKey(idStation))
+                        // Enregistrer l'ID, le nom et la ligne pour une utilisation ultérieure
+                        idVersNom[idStation] = nomStation;
+                        idVersLigne[idStation] = ligneMetro;
+                        _tempsChangementMapping[idStation] = tempsChangement;
+
+                        // Ajouter la ligne à la collection de lignes pour cette station
+                        if (!_lignesParStation.ContainsKey(nomStation))
                         {
-                            Noeud<T> nouveauNoeud = new Noeud<T>(default(T), nomStation, 0, 0, ligneMetro);
-                            stationsParId.Add(idStation, nouveauNoeud);
-                            AjouterNoeud(nouveauNoeud);
-                            _tempsChangementMapping[idStation] = tempsChangement;
+                            _lignesParStation[nomStation] = new HashSet<string>();
                         }
+                        _lignesParStation[nomStation].Add(ligneMetro);
+
+                        // Créer ou récupérer le nœud unique pour cette station
+                        if (!_stationsUniques.ContainsKey(nomStation))
+                        {
+                            // Pour le premier nœud d'une station, utiliser sa ligne comme ligne principale
+                            Noeud<T> nouveauNoeud = new Noeud<T>(default(T), nomStation, 0, 0, ligneMetro);
+                            _stationsUniques.Add(nomStation, nouveauNoeud);
+                            AjouterNoeud(nouveauNoeud);
+                        }
+
+                        // Associer l'ID original au nœud unique
+                        idVersIdUnique[idStation] = 0; // Valeur provisoire, on utilisera le nom comme clé unique
                     }
                 }
 
@@ -100,18 +142,27 @@ namespace LivInParisApp
                     if (donnees.Length >= 6)
                     {
                         int idStation = int.Parse(donnees[0]);
-                        int? idPrecedent = string.IsNullOrEmpty(donnees[2]) ? (int?)null : int.Parse(donnees[2]);
-                        int? idSuivant = string.IsNullOrEmpty(donnees[3]) ? (int?)null : int.Parse(donnees[3]);
+                        int? idPrecedent = string.IsNullOrEmpty(donnees[3]) ? (int?)null : int.Parse(donnees[3]);
+                        int? idSuivant = string.IsNullOrEmpty(donnees[4]) ? (int?)null : int.Parse(donnees[4]);
                         double tempsEntreStations = double.Parse(donnees[4], CultureInfo.InvariantCulture);
 
-                        Noeud<T> stationActuelle = stationsParId[idStation];
+                        string nomStationActuelle = idVersNom[idStation];
+                        string ligneStationActuelle = idVersLigne[idStation];
+                        Noeud<T> stationActuelle = _stationsUniques[nomStationActuelle];
 
                         // Ajouter le lien vers la station précédente si elle existe
                         if (idPrecedent.HasValue && tempsEntreStations > 0)
                         {
-                            if (stationsParId.ContainsKey(idPrecedent.Value))
+                            if (idVersNom.ContainsKey(idPrecedent.Value))
                             {
-                                Noeud<T> stationPrecedente = stationsParId[idPrecedent.Value];
+                                string nomStationPrecedente = idVersNom[idPrecedent.Value];
+                                Noeud<T> stationPrecedente = _stationsUniques[nomStationPrecedente];
+
+                                // Vérifier si les stations sont sur la même ligne
+                                string ligneStationPrecedente = idVersLigne[idPrecedent.Value];
+                                bool memeLigne = ligneStationActuelle == ligneStationPrecedente;
+
+                                // Ajouter le lien avec le temps approprié
                                 AjouterLien(stationActuelle, stationPrecedente, tempsEntreStations);
                             }
                         }
@@ -119,20 +170,26 @@ namespace LivInParisApp
                         // Ajouter le lien vers la station suivante si elle existe
                         if (idSuivant.HasValue && tempsEntreStations > 0)
                         {
-                            if (stationsParId.ContainsKey(idSuivant.Value))
+                            if (idVersNom.ContainsKey(idSuivant.Value))
                             {
-                                Noeud<T> stationSuivante = stationsParId[idSuivant.Value];
+                                string nomStationSuivante = idVersNom[idSuivant.Value];
+                                Noeud<T> stationSuivante = _stationsUniques[nomStationSuivante];
+
+                                // Vérifier si les stations sont sur la même ligne
+                                string ligneStationSuivante = idVersLigne[idSuivant.Value];
+                                bool memeLigne = ligneStationActuelle == ligneStationSuivante;
+
+                                // Ajouter le lien avec le temps approprié
                                 AjouterLien(stationActuelle, stationSuivante, tempsEntreStations);
                             }
                         }
                     }
                 }
 
-                // Troisième étape : générer les correspondances entre stations de même nom
-                Console.WriteLine("Création des correspondances entre stations...");
-                ChargerCorrespondances();
+                // On n'a plus besoin de créer explicitement les correspondances entre stations de même nom
+                // car nous avons maintenant une seule instance par station
 
-                Console.WriteLine($"Chargement terminé. {stationsParId.Count} stations créées avec leurs connexions.");
+                Console.WriteLine($"Chargement terminé. {_stationsUniques.Count} stations uniques créées avec leurs connexions.");
             }
             catch (Exception ex)
             {
@@ -141,81 +198,64 @@ namespace LivInParisApp
             }
         }
 
-
         public void ChargerCorrespondances()
         {
             try
             {
-                // Regrouper les stations par nom
-                Dictionary<string, List<Noeud<T>>> stationsParNom = new Dictionary<string, List<Noeud<T>>>();
-
-                foreach (Noeud<T> noeud in Noeuds)
-                {
-                    if (string.IsNullOrWhiteSpace(noeud.Nom))
-                        continue;
-
-                    if (!stationsParNom.ContainsKey(noeud.Nom))
-                    {
-                        stationsParNom[noeud.Nom] = new List<Noeud<T>>();
-                    }
-                    stationsParNom[noeud.Nom].Add(noeud);
-                }
+                // Cette méthode est maintenant simplifiée car nous avons déjà des stations uniques
+                // Nous devons juste assurer que les connexions entre stations de différentes lignes
+                // ont le bon temps de correspondance
 
                 int correspondancesCreees = 0;
-                foreach (var nomStation in stationsParNom.Keys)
+
+                // Pour chaque station avec plusieurs lignes
+                foreach (var paire in _lignesParStation.Where(p => p.Value.Count > 1))
                 {
-                    var stationsMemeNom = stationsParNom[nomStation];
+                    string nomStation = paire.Key;
+                    var lignes = paire.Value.ToList();
 
-                    if (stationsMemeNom.Count > 1)
+                    if (_stationsUniques.ContainsKey(nomStation))
                     {
-                        Console.WriteLine($"Création de correspondances pour la station : {nomStation} ({stationsMemeNom.Count} lignes)");
+                        // Nous n'avons qu'un seul nœud par station maintenant
+                        // mais nous devons assurer que les temps de connexion 
+                        // sont corrects pour les voisins
+                        Noeud<T> station = _stationsUniques[nomStation];
 
-                        for (int i = 0; i < stationsMemeNom.Count; i++)
+                        // Vérifier et mettre à jour les connexions aux voisins
+                        foreach (var voisin in station.Voisins.ToList())
                         {
-                            for (int j = i + 1; j < stationsMemeNom.Count; j++)
+                            string nomVoisin = voisin.Key.Nom;
+
+                            // Déterminer si c'est une correspondance (stations sur des lignes différentes)
+                            // En vérifiant s'ils partagent au moins une ligne
+                            bool estCorrespondance = !_lignesParStation[nomStation]
+                                .Intersect(_lignesParStation[nomVoisin])
+                                .Any();
+
+                            if (estCorrespondance)
                             {
-                                Noeud<T> station1 = stationsMemeNom[i];
-                                Noeud<T> station2 = stationsMemeNom[j];
+                                // C'est une correspondance, utiliser le temps de correspondance moyen
+                                double tempsCorrespondance = 3.0; // Valeur par défaut
 
-                                double tempsChangement1 = 3.0;
-                                double tempsChangement2 = 3.0;
+                                // On pourrait utiliser les temps de changement moyens des lignes impliquées
+                                // si nous avons cette information dans _tempsChangementMapping
 
-                                if (!string.IsNullOrWhiteSpace(station1.LigneMetro) &&
-                                    int.TryParse(station1.LigneMetro, out int value1) &&
-                                    _tempsChangementMapping.TryGetValue(value1, out double tc1))
+                                // Mise à jour du temps de correspondance si nécessaire
+                                if (voisin.Value != tempsCorrespondance)
                                 {
-                                    tempsChangement1 = tc1;
+                                    station.AjouterVoisin(voisin.Key, tempsCorrespondance);
+                                    correspondancesCreees++;
                                 }
-                                // Sinon, on garde la valeur par défaut 3.0
-
-                                if (!string.IsNullOrWhiteSpace(station2.LigneMetro) &&
-                                    int.TryParse(station2.LigneMetro, out int value2) &&
-                                    _tempsChangementMapping.TryGetValue(value2, out double tc2))
-                                {
-                                    tempsChangement2 = tc2;
-                                }
-                                // Sinon, on garde la valeur par défaut 3.0
-
-                                double tempsCorrespondance = (tempsChangement1 + tempsChangement2) / 2.0;
-                                if (tempsCorrespondance <= 0)
-                                    tempsCorrespondance = 3.0;
-
-                                AjouterLien(station1, station2, tempsCorrespondance);
-                                AjouterLien(station2, station1, tempsCorrespondance);
-
-                                correspondancesCreees++;
-
-                                Console.WriteLine($"  Correspondance: {station1.Nom} (Ligne: {station1.LigneMetro}) <--> {station2.Nom} (Ligne: {station2.LigneMetro}), Temps: {tempsCorrespondance} min");
                             }
                         }
                     }
                 }
 
-                Console.WriteLine($"Total des correspondances créées: {correspondancesCreees}");
+                Console.WriteLine($"Total des temps de correspondances mis à jour: {correspondancesCreees}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Erreur lors du chargement des correspondances: {ex.Message}");
+                Console.WriteLine($"Erreur lors de la mise à jour des correspondances: {ex.Message}");
                 Console.WriteLine(ex.StackTrace);
             }
         }
@@ -238,7 +278,6 @@ namespace LivInParisApp
                 destination.AjouterVoisin(source, poids);
             }
         }
-        
 
         // Recherche du plus court chemin avec l'algorithme de Dijkstra
         public List<Noeud<T>> Dijkstra(Noeud<T> source, Noeud<T> destination)
@@ -305,7 +344,6 @@ namespace LivInParisApp
 
             return chemin;
         }
-
 
         // Recherche du plus court chemin avec l'algorithme de Bellman-Ford
         public List<Noeud<T>> BellmanFord(Noeud<T> source, Noeud<T> destination)
@@ -444,7 +482,7 @@ namespace LivInParisApp
         // Comparer les résultats des 3 algorithmes
         public void ComparerAlgorithmes(Noeud<T> source, Noeud<T> destination)
         {
-            Console.WriteLine($"Comparaison des algorithmes pour le trajet de {source} à {destination}");
+            Console.WriteLine($"Comparaison des algorithmes pour le trajet de {source.Nom} à {destination.Nom}");
 
             var startDijkstra = DateTime.Now;
             var cheminDijkstra = Dijkstra(source, destination);
@@ -494,14 +532,28 @@ namespace LivInParisApp
 
             for (int i = 0; i < chemin.Count; i++)
             {
-                Console.WriteLine($"{i + 1}. {chemin[i]}");
+                // Afficher la station avec toutes ses lignes associées
+                string lignes = GetLignesForStation(chemin[i].Nom);
+                Console.WriteLine($"{i + 1}. {chemin[i].Nom} (Lignes: {lignes})");
+
                 if (i < chemin.Count - 1)
                 {
                     double tempsTroncon = chemin[i].Voisins[chemin[i + 1]];
                     tempsTotal += tempsTroncon;
-                    if (chemin[i].LigneMetro != chemin[i + 1].LigneMetro)
+
+                    // Déterminer si c'est une correspondance en vérifiant les lignes communes
+                    bool estCorrespondance = false;
+                    if (_lignesParStation.ContainsKey(chemin[i].Nom) && _lignesParStation.ContainsKey(chemin[i + 1].Nom))
                     {
-                        Console.WriteLine($"   Correspondance: Ligne {chemin[i].LigneMetro} → Ligne {chemin[i + 1].LigneMetro} ({tempsTroncon} min)");
+                        // C'est une correspondance s'il n'y a pas de ligne commune
+                        estCorrespondance = !_lignesParStation[chemin[i].Nom]
+                            .Intersect(_lignesParStation[chemin[i + 1].Nom])
+                            .Any();
+                    }
+
+                    if (estCorrespondance)
+                    {
+                        Console.WriteLine($"   Correspondance: entre lignes ({tempsTroncon} min)");
                     }
                     else
                     {
