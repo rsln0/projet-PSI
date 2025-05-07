@@ -63,6 +63,11 @@ namespace LivInParisApp
                             Console.WriteLine("Option invalide. Veuillez réessayer.");
                             break;
                     }
+                    if (!exit)
+                    {
+                        Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+                        Console.ReadKey();
+                    }
                 }
 
                 connection.Close();
@@ -367,12 +372,37 @@ namespace LivInParisApp
                         return;
                     }
 
-                    Console.WriteLine("ID\tNom\t\tPrénom\t\tAdresse\t\t\tTéléphone\tEmail");
-                    Console.WriteLine(new string('-', 100));
+                    const int idWidth = 5;
+                    const int nomWidth = 15;
+                    const int prenomWidth = 15;
+                    const int adresseWidth = 30;
+                    const int telWidth = 15;
+                    const int emailWidth = 30;
+
+                    Console.WriteLine($"{"ID".PadRight(idWidth)}{"Nom".PadRight(nomWidth)}{"Prénom".PadRight(prenomWidth)}{"Adresse".PadRight(adresseWidth)}{"Téléphone".PadRight(telWidth)}{"Email".PadRight(emailWidth)}");
+                    Console.WriteLine(new string('-', idWidth + nomWidth + prenomWidth + adresseWidth + telWidth + emailWidth));
 
                     while (reader.Read())
                     {
-                        Console.WriteLine($"{reader["id_client"]}\t{reader["nom"],-15}{reader["prenom"],-15}{reader["adresse"],-30}{reader["telephone"],-15}{reader["email"]}");
+                        string adresse = reader["adresse"].ToString();
+                        if (adresse.Length > adresseWidth - 3)
+                        {
+                            adresse = adresse.Substring(0, adresseWidth - 3) + "...";
+                        }
+
+                        string email = reader["email"].ToString();
+                        if (email.Length > emailWidth - 3)
+                        {
+                            email = email.Substring(0, emailWidth - 3) + "...";
+                        }
+
+                        Console.WriteLine(
+                            $"{reader["id_client"].ToString().PadRight(idWidth)}" +
+                            $"{reader["nom"].ToString().PadRight(nomWidth)}" +
+                            $"{reader["prenom"].ToString().PadRight(prenomWidth)}" +
+                            $"{adresse.PadRight(adresseWidth)}" +
+                            $"{reader["telephone"].ToString().PadRight(telWidth)}" +
+                            $"{email}");
                     }
                 }
             }
@@ -399,12 +429,37 @@ namespace LivInParisApp
                         return;
                     }
 
-                    Console.WriteLine("ID\tNom\t\tPrénom\t\tAdresse\t\t\tTéléphone\tEmail");
-                    Console.WriteLine(new string('-', 100));
+                    const int idWidth = 5;
+                    const int nomWidth = 15;
+                    const int prenomWidth = 15;
+                    const int adresseWidth = 30;
+                    const int telWidth = 15;
+                    const int emailWidth = 30;
+
+                    Console.WriteLine($"{"ID".PadRight(idWidth)}{"Nom".PadRight(nomWidth)}{"Prénom".PadRight(prenomWidth)}{"Adresse".PadRight(adresseWidth)}{"Téléphone".PadRight(telWidth)}{"Email".PadRight(emailWidth)}");
+                    Console.WriteLine(new string('-', idWidth + nomWidth + prenomWidth + adresseWidth + telWidth + emailWidth));
 
                     while (reader.Read())
                     {
-                        Console.WriteLine($"{reader["id_client"]}\t{reader["nom"],-15}{reader["prenom"],-15}{reader["adresse"],-30}{reader["telephone"],-15}{reader["email"]}");
+                        string adresse = reader["adresse"].ToString();
+                        if (adresse.Length > adresseWidth - 3)
+                        {
+                            adresse = adresse.Substring(0, adresseWidth - 3) + "...";
+                        }
+
+                        string email = reader["email"].ToString();
+                        if (email.Length > emailWidth - 3)
+                        {
+                            email = email.Substring(0, emailWidth - 3) + "...";
+                        }
+
+                        Console.WriteLine(
+                            $"{reader["id_client"].ToString().PadRight(idWidth)}" +
+                            $"{reader["nom"].ToString().PadRight(nomWidth)}" +
+                            $"{reader["prenom"].ToString().PadRight(prenomWidth)}" +
+                            $"{adresse.PadRight(adresseWidth)}" +
+                            $"{reader["telephone"].ToString().PadRight(telWidth)}" +
+                            $"{email}");
                     }
                 }
             }
@@ -687,9 +742,513 @@ namespace LivInParisApp
         #region Module Commande
         private static void ModuleCommande()
         {
-            Console.Clear();
-            Console.WriteLine("===== MODULE COMMANDE =====");
-            Console.WriteLine("Module Commande non implémenté pour le moment.");
+            bool retour = false;
+            while (!retour)
+            {
+                Console.Clear();
+                Console.WriteLine("===== MODULE COMMANDE =====");
+                Console.WriteLine("1. Afficher toutes les commandes");
+                Console.WriteLine("2. Afficher les commandes d'un client");
+                Console.WriteLine("3. Afficher les commandes d'un cuisinier");
+                Console.WriteLine("4. Afficher le détail d'une commande");
+                Console.WriteLine("5. Retour au menu principal");
+                Console.Write("Votre choix : ");
+                string choice = Console.ReadLine();
+                Console.WriteLine();
+
+                switch (choice)
+                {
+                    case "1":
+                        AfficherToutesCommandes();
+                        break;
+                    case "2":
+                        AfficherCommandesClient();
+                        break;
+                    case "3":
+                        AfficherCommandesCuisinier();
+                        break;
+                    case "4":
+                        AfficherDetailCommande();
+                        break;
+                    case "5":
+                        retour = true;
+                        break;
+                    default:
+                        Console.WriteLine("Option invalide. Veuillez réessayer.");
+                        break;
+                }
+                if (!retour)
+                {
+                    Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+                    Console.ReadKey();
+                }
+            }
+        }
+
+        private static void AfficherToutesCommandes()
+        {
+            Console.WriteLine("=== Liste de toutes les commandes ===");
+
+            try
+            {
+                string query = @"
+    SELECT c.id_commande, DATE_FORMAT(c.date_commande, '%d/%m/%Y') AS date_formattee, 
+           cl.id_client, CONCAT(cl.prenom, ' ', cl.nom) AS nom_client,
+           cu.id_cuisinier, CONCAT(cu.prenom, ' ', cu.nom) AS nom_cuisinier,
+           (SELECT SUM(p.prix * dc.quantite) 
+            FROM Details_Commande dc 
+            JOIN Plat p ON dc.id_plat = p.id_plat 
+            WHERE dc.id_commande = c.id_commande) AS prix_total_calcule
+    FROM Commande c
+    JOIN Client cl ON c.id_client = cl.id_client
+    JOIN Cuisinier cu ON c.id_cuisinier = cu.id_cuisinier
+    ORDER BY c.date_commande DESC";
+
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+
+                using (MySqlDataReader reader = cmd.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucune commande trouvée.");
+                        return;
+                    }
+
+                    const int idWidth = 5;
+                    const int dateWidth = 12;
+                    const int idClientWidth = 10;
+                    const int clientWidth = 25;
+                    const int cuisinierWidth = 25;
+                    const int prixWidth = 15;
+
+                    Console.WriteLine($"{"ID".PadRight(idWidth)} | {"Date".PadRight(dateWidth)} | {"ID Client".PadRight(idClientWidth)} | {"Client".PadRight(clientWidth)} | {"Cuisinier".PadRight(cuisinierWidth)} | {"Prix total".PadRight(prixWidth)}");
+                    Console.WriteLine(new string('-', idWidth + dateWidth + idClientWidth + clientWidth + cuisinierWidth + prixWidth + 10));
+
+                    while (reader.Read())
+                    {
+                        string id = reader["id_commande"].ToString();
+                        string date = reader["date_formattee"].ToString();
+                        string idClient = reader["id_client"].ToString();
+                        string client = reader["nom_client"].ToString();
+                        string cuisinier = reader["nom_cuisinier"].ToString();
+                        string prix = ((decimal)reader["prix_total_calcule"]).ToString("C");
+
+                        if (client.Length > clientWidth - 3)
+                            client = client.Substring(0, clientWidth - 3) + "...";
+
+                        if (cuisinier.Length > cuisinierWidth - 3)
+                            cuisinier = cuisinier.Substring(0, cuisinierWidth - 3) + "...";
+
+                        Console.WriteLine(
+                            $"{id.PadRight(idWidth)} | " +
+                            $"{date.PadRight(dateWidth)} | " +
+                            $"{idClient.PadRight(idClientWidth)} | " +
+                            $"{client.PadRight(clientWidth)} | " +
+                            $"{cuisinier.PadRight(cuisinierWidth)} | " +
+                            $"{prix}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherCommandesClient()
+        {
+            Console.WriteLine("=== Affichage des commandes d'un client ===");
+
+            int idClient = SelectionnerClient();
+            if (idClient == -1) return;
+
+            try
+            {
+                string queryNomClient = "SELECT CONCAT(prenom, ' ', nom) AS nom_complet FROM Client WHERE id_client = @idClient";
+                MySqlCommand cmdNomClient = new MySqlCommand(queryNomClient, connection);
+                cmdNomClient.Parameters.AddWithValue("@idClient", idClient);
+                string nomClient = (string)cmdNomClient.ExecuteScalar();
+
+                Console.WriteLine($"\n=== Commandes de {nomClient} (ID: {idClient}) ===");
+
+                string queryCommandes = @"
+    SELECT c.id_commande, DATE_FORMAT(c.date_commande, '%d/%m/%Y') AS date_formattee, 
+           CONCAT(cu.prenom, ' ', cu.nom) AS nom_cuisinier,
+           (SELECT SUM(p.prix * dc.quantite) 
+            FROM Details_Commande dc 
+            JOIN Plat p ON dc.id_plat = p.id_plat 
+            WHERE dc.id_commande = c.id_commande) AS prix_total_calcule
+    FROM Commande c
+    JOIN Cuisinier cu ON c.id_cuisinier = cu.id_cuisinier
+    WHERE c.id_client = @idClient
+    ORDER BY c.date_commande DESC";
+
+                MySqlCommand cmdCommandes = new MySqlCommand(queryCommandes, connection);
+                cmdCommandes.Parameters.AddWithValue("@idClient", idClient);
+
+                List<int> commandeIds = new List<int>();
+
+                using (MySqlDataReader reader = cmdCommandes.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucune commande trouvée pour ce client.");
+                        return;
+                    }
+
+                    const int idWidth = 5;
+                    const int dateWidth = 12;
+                    const int cuisinierWidth = 30;
+                    const int prixWidth = 15;
+
+                    Console.WriteLine($"{"ID".PadRight(idWidth)} | {"Date".PadRight(dateWidth)} | {"Cuisinier".PadRight(cuisinierWidth)} | {"Prix total".PadRight(prixWidth)}");
+                    Console.WriteLine(new string('-', idWidth + dateWidth + cuisinierWidth + prixWidth + 6));
+
+                    while (reader.Read())
+                    {
+                        int idCommande = (int)reader["id_commande"];
+                        commandeIds.Add(idCommande);
+
+                        string id = idCommande.ToString();
+                        string date = reader["date_formattee"].ToString();
+                        string cuisinier = reader["nom_cuisinier"].ToString();
+                        string prix = ((decimal)reader["prix_total_calcule"]).ToString("C");
+
+                        if (cuisinier.Length > cuisinierWidth - 3)
+                            cuisinier = cuisinier.Substring(0, cuisinierWidth - 3) + "...";
+
+                        Console.WriteLine(
+                            $"{id.PadRight(idWidth)} | " +
+                            $"{date.PadRight(dateWidth)} | " +
+                            $"{cuisinier.PadRight(cuisinierWidth)} | " +
+                            $"{prix}");
+                    }
+                }
+
+                if (commandeIds.Count > 0)
+                {
+                    Console.Write("\nVoulez-vous voir le détail d'une commande de ce client ? (O/N) : ");
+                    string reponse = Console.ReadLine().ToUpper();
+                    if (reponse == "O" || reponse == "OUI")
+                    {
+                        Console.Write($"Entrez l'ID de la commande à afficher ({string.Join(", ", commandeIds)}) : ");
+                        if (int.TryParse(Console.ReadLine(), out int idCommande) && commandeIds.Contains(idCommande))
+                        {
+                            AfficherDetailCommandeSpecifique(idCommande);
+                        }
+                        else
+                        {
+                            Console.WriteLine("ID de commande invalide ou ne correspond pas à ce client.");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherCommandesCuisinier()
+        {
+            Console.WriteLine("=== Affichage des commandes d'un cuisinier ===");
+
+            int idCuisinier = SelectionnerCuisinier();
+            if (idCuisinier == -1) return;
+
+            try
+            {
+                string queryNomCuisinier = "SELECT CONCAT(prenom, ' ', nom) AS nom_complet FROM Cuisinier WHERE id_cuisinier = @idCuisinier";
+                MySqlCommand cmdNomCuisinier = new MySqlCommand(queryNomCuisinier, connection);
+                cmdNomCuisinier.Parameters.AddWithValue("@idCuisinier", idCuisinier);
+                string nomCuisinier = (string)cmdNomCuisinier.ExecuteScalar();
+
+                Console.WriteLine($"\n=== Commandes préparées par {nomCuisinier} (ID: {idCuisinier}) ===");
+
+                string queryCommandes = @"
+    SELECT c.id_commande, DATE_FORMAT(c.date_commande, '%d/%m/%Y') AS date_formattee, 
+           cl.id_client, CONCAT(cl.prenom, ' ', cl.nom) AS nom_client,
+           (SELECT SUM(p.prix * dc.quantite) 
+            FROM Details_Commande dc 
+            JOIN Plat p ON dc.id_plat = p.id_plat 
+            WHERE dc.id_commande = c.id_commande) AS prix_total_calcule
+    FROM Commande c
+    JOIN Client cl ON c.id_client = cl.id_client
+    WHERE c.id_cuisinier = @idCuisinier
+    ORDER BY c.date_commande DESC";
+
+                MySqlCommand cmdCommandes = new MySqlCommand(queryCommandes, connection);
+                cmdCommandes.Parameters.AddWithValue("@idCuisinier", idCuisinier);
+
+                List<int> commandeIds = new List<int>();
+
+                using (MySqlDataReader reader = cmdCommandes.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucune commande trouvée pour ce cuisinier.");
+                        return;
+                    }
+
+                    const int idWidth = 5;
+                    const int dateWidth = 12;
+                    const int idClientWidth = 10;
+                    const int clientWidth = 30;
+                    const int prixWidth = 15;
+
+                    Console.WriteLine($"{"ID".PadRight(idWidth)} | {"Date".PadRight(dateWidth)} | {"ID Client".PadRight(idClientWidth)} | {"Client".PadRight(clientWidth)} | {"Prix total".PadRight(prixWidth)}");
+                    Console.WriteLine(new string('-', idWidth + dateWidth + idClientWidth + clientWidth + prixWidth + 8));
+
+                    while (reader.Read())
+                    {
+                        int idCommande = (int)reader["id_commande"];
+                        commandeIds.Add(idCommande);
+
+                        string id = idCommande.ToString();
+                        string date = reader["date_formattee"].ToString();
+                        string idClient = reader["id_client"].ToString();
+                        string client = reader["nom_client"].ToString();
+                        string prix = ((decimal)reader["prix_total_calcule"]).ToString("C");
+
+                        if (client.Length > clientWidth - 3)
+                            client = client.Substring(0, clientWidth - 3) + "...";
+
+                        Console.WriteLine(
+                            $"{id.PadRight(idWidth)} | " +
+                            $"{date.PadRight(dateWidth)} | " +
+                            $"{idClient.PadRight(idClientWidth)} | " +
+                            $"{client.PadRight(clientWidth)} | " +
+                            $"{prix}");
+                    }
+                }
+
+                if (commandeIds.Count > 0)
+                {
+                    Console.Write("\nVoulez-vous voir le détail d'une commande de ce cuisinier ? (O/N) : ");
+                    string reponse = Console.ReadLine().ToUpper();
+                    if (reponse == "O" || reponse == "OUI")
+                    {
+                        Console.Write($"Entrez l'ID de la commande à afficher ({string.Join(", ", commandeIds)}) : ");
+                        if (int.TryParse(Console.ReadLine(), out int idCommande) && commandeIds.Contains(idCommande))
+                        {
+                            AfficherDetailCommandeSpecifique(idCommande);
+                        }
+                        else
+                        {
+                            Console.WriteLine("ID de commande invalide ou ne correspond pas à ce cuisinier.");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherDetailCommande()
+        {
+            Console.WriteLine("=== Affichage du détail d'une commande ===");
+
+            Console.Write("Entrez l'ID de la commande : ");
+            if (!int.TryParse(Console.ReadLine(), out int idCommande))
+            {
+                Console.WriteLine("ID invalide.");
+                return;
+            }
+
+            try
+            {
+                string queryCommande = @"
+            SELECT c.id_commande, c.date_commande, c.prix_total, 
+                   cl.id_client, CONCAT(cl.prenom, ' ', cl.nom) AS nom_client,
+                   cl.email AS email_client, cl.telephone AS tel_client,
+                   cu.id_cuisinier, CONCAT(cu.prenom, ' ', cu.nom) AS nom_cuisinier
+            FROM Commande c
+            JOIN Client cl ON c.id_client = cl.id_client
+            JOIN Cuisinier cu ON c.id_cuisinier = cu.id_cuisinier
+            WHERE c.id_commande = @idCommande";
+
+                MySqlCommand cmdCommande = new MySqlCommand(queryCommande, connection);
+                cmdCommande.Parameters.AddWithValue("@idCommande", idCommande);
+
+                using (MySqlDataReader reader = cmdCommande.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        Console.WriteLine("Commande non trouvée.");
+                        return;
+                    }
+
+                    Console.WriteLine("\n=== DÉTAILS DE LA COMMANDE ===");
+                    Console.WriteLine($"Commande #{reader["id_commande"]}");
+                    Console.WriteLine($"Date: {((DateTime)reader["date_commande"]).ToString("dd/MM/yyyy")}");
+                    Console.WriteLine("\n--- Informations client ---");
+                    Console.WriteLine($"Client: {reader["nom_client"]} (ID: {reader["id_client"]})");
+                    Console.WriteLine($"Email: {reader["email_client"]}");
+                    Console.WriteLine($"Téléphone: {reader["tel_client"]}");
+                    Console.WriteLine("\n--- Informations cuisinier ---");
+                    Console.WriteLine($"Cuisinier: {reader["nom_cuisinier"]} (ID: {reader["id_cuisinier"]})");
+                }
+
+                Console.WriteLine("\n--- Plats commandés ---");
+                string queryPlats = @"
+            SELECT p.nom_plat, p.type_plat, dc.quantite, p.prix, 
+                   (p.prix * dc.quantite) AS sous_total
+            FROM Details_Commande dc
+            JOIN Plat p ON dc.id_plat = p.id_plat
+            WHERE dc.id_commande = @idCommande
+            ORDER BY p.type_plat, p.nom_plat";
+
+                MySqlCommand cmdPlats = new MySqlCommand(queryPlats, connection);
+                cmdPlats.Parameters.AddWithValue("@idCommande", idCommande);
+
+                decimal prixTotal = 0;
+                using (MySqlDataReader reader = cmdPlats.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucun plat dans cette commande.");
+                        return;
+                    }
+
+                    const int nomPlatWidth = 30;
+                    const int typePlatWidth = 15;
+                    const int quantiteWidth = 10;
+                    const int prixUnitWidth = 15;
+                    const int sousTotalWidth = 15;
+
+                    Console.WriteLine($"{"Plat".PadRight(nomPlatWidth)} | {"Type".PadRight(typePlatWidth)} | {"Quantité".PadRight(quantiteWidth)} | {"Prix unitaire".PadRight(prixUnitWidth)} | {"Sous-total".PadRight(sousTotalWidth)}");
+                    Console.WriteLine(new string('-', nomPlatWidth + typePlatWidth + quantiteWidth + prixUnitWidth + sousTotalWidth + 8));
+
+                    while (reader.Read())
+                    {
+                        decimal sousTotal = (decimal)reader["sous_total"];
+                        string nomPlat = reader["nom_plat"].ToString();
+                        string typePlat = reader["type_plat"].ToString();
+                        string quantite = reader["quantite"].ToString();
+                        string prixUnit = ((decimal)reader["prix"]).ToString("C");
+                        string sousTotal_str = sousTotal.ToString("C");
+
+                        if (nomPlat.Length > nomPlatWidth - 3)
+                            nomPlat = nomPlat.Substring(0, nomPlatWidth - 3) + "...";
+
+                        Console.WriteLine(
+                            $"{nomPlat.PadRight(nomPlatWidth)} | " +
+                            $"{typePlat.PadRight(typePlatWidth)} | " +
+                            $"{quantite.PadRight(quantiteWidth)} | " +
+                            $"{prixUnit.PadRight(prixUnitWidth)} | " +
+                            $"{sousTotal_str}");
+
+                        prixTotal += sousTotal;
+                    }
+                }
+
+                Console.WriteLine(new string('-', 90));
+                Console.WriteLine($"{"PRIX TOTAL:".PadRight(73)} {prixTotal:C}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherDetailCommandeSpecifique(int idCommande)
+        {
+            try
+            {
+                string queryCommande = @"
+            SELECT c.id_commande, c.date_commande, c.prix_total, 
+                   cl.id_client, CONCAT(cl.prenom, ' ', cl.nom) AS nom_client,
+                   cl.email AS email_client, cl.telephone AS tel_client,
+                   cu.id_cuisinier, CONCAT(cu.prenom, ' ', cu.nom) AS nom_cuisinier
+            FROM Commande c
+            JOIN Client cl ON c.id_client = cl.id_client
+            JOIN Cuisinier cu ON c.id_cuisinier = cu.id_cuisinier
+            WHERE c.id_commande = @idCommande";
+
+                MySqlCommand cmdCommande = new MySqlCommand(queryCommande, connection);
+                cmdCommande.Parameters.AddWithValue("@idCommande", idCommande);
+
+                using (MySqlDataReader reader = cmdCommande.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        Console.WriteLine("Commande non trouvée.");
+                        return;
+                    }
+
+                    Console.WriteLine("\n=== DÉTAILS DE LA COMMANDE ===");
+                    Console.WriteLine($"Commande #{reader["id_commande"]}");
+                    Console.WriteLine($"Date: {((DateTime)reader["date_commande"]).ToString("dd/MM/yyyy")}");
+                    Console.WriteLine("\n--- Informations client ---");
+                    Console.WriteLine($"Client: {reader["nom_client"]} (ID: {reader["id_client"]})");
+                    Console.WriteLine($"Email: {reader["email_client"]}");
+                    Console.WriteLine($"Téléphone: {reader["tel_client"]}");
+                    Console.WriteLine("\n--- Informations cuisinier ---");
+                    Console.WriteLine($"Cuisinier: {reader["nom_cuisinier"]} (ID: {reader["id_cuisinier"]})");
+                }
+
+                Console.WriteLine("\n--- Plats commandés ---");
+                string queryPlats = @"
+            SELECT p.nom_plat, p.type_plat, dc.quantite, p.prix, 
+                   (p.prix * dc.quantite) AS sous_total
+            FROM Details_Commande dc
+            JOIN Plat p ON dc.id_plat = p.id_plat
+            WHERE dc.id_commande = @idCommande
+            ORDER BY p.type_plat, p.nom_plat";
+
+                MySqlCommand cmdPlats = new MySqlCommand(queryPlats, connection);
+                cmdPlats.Parameters.AddWithValue("@idCommande", idCommande);
+
+                decimal prixTotal = 0;
+                using (MySqlDataReader reader = cmdPlats.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucun plat dans cette commande.");
+                        return;
+                    }
+
+                    const int nomPlatWidth = 30;
+                    const int typePlatWidth = 15;
+                    const int quantiteWidth = 10;
+                    const int prixUnitWidth = 15;
+                    const int sousTotalWidth = 15;
+
+                    Console.WriteLine($"{"Plat".PadRight(nomPlatWidth)} | {"Type".PadRight(typePlatWidth)} | {"Quantité".PadRight(quantiteWidth)} | {"Prix unitaire".PadRight(prixUnitWidth)} | {"Sous-total".PadRight(sousTotalWidth)}");
+                    Console.WriteLine(new string('-', nomPlatWidth + typePlatWidth + quantiteWidth + prixUnitWidth + sousTotalWidth + 8));
+
+                    while (reader.Read())
+                    {
+                        decimal sousTotal = (decimal)reader["sous_total"];
+                        string nomPlat = reader["nom_plat"].ToString();
+                        string typePlat = reader["type_plat"].ToString();
+                        string quantite = reader["quantite"].ToString();
+                        string prixUnit = ((decimal)reader["prix"]).ToString("C");
+                        string sousTotal_str = sousTotal.ToString("C");
+
+                        if (nomPlat.Length > nomPlatWidth - 3)
+                            nomPlat = nomPlat.Substring(0, nomPlatWidth - 3) + "...";
+
+                        Console.WriteLine(
+                            $"{nomPlat.PadRight(nomPlatWidth)} | " +
+                            $"{typePlat.PadRight(typePlatWidth)} | " +
+                            $"{quantite.PadRight(quantiteWidth)} | " +
+                            $"{prixUnit.PadRight(prixUnitWidth)} | " +
+                            $"{sousTotal_str}");
+
+                        prixTotal += sousTotal;
+                    }
+                }
+
+                Console.WriteLine(new string('-', 90));
+                Console.WriteLine($"{"PRIX TOTAL:".PadRight(73)} {prixTotal:C}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
         }
         #endregion
 
@@ -701,14 +1260,11 @@ namespace LivInParisApp
 
             try
             {
-                // Création d'un graphe orienté à partir des données CSV
                 var graphe = new LivInParisApp.Graphe<string>(estOriente: false);
 
-                // Charger les données depuis le CSV
                 string cheminFichier = "C:/Users/ruben/OneDrive/Documents/arcs projet PSI.csv"; // Remplacez par le chemin réel
                 graphe.ChargerDonneesCSV(cheminFichier);
 
-                // Sous-menu pour le module Trajet
                 Console.WriteLine("Choisissez une action :");
                 Console.WriteLine("1. Lancer l'interface graphique (Metro_GUI)");
                 Console.WriteLine("2. Comparer les algorithmes du plus court chemin");
@@ -719,7 +1275,6 @@ namespace LivInParisApp
                 switch (subChoice)
                 {
                     case "1":
-                        // Lancer l'interface graphique Metro_GUI
                         Application.Run(new Metro_GUI());
                         break;
                     case "2":
@@ -764,5 +1319,28 @@ namespace LivInParisApp
             }
         }
         #endregion
+
+        // Méthodes auxiliaires pour sélectionner un client ou un cuisinier
+        private static int SelectionnerClient()
+        {
+            Console.Write("Entrez l'ID du client : ");
+            if (!int.TryParse(Console.ReadLine(), out int idClient))
+            {
+                Console.WriteLine("ID invalide.");
+                return -1;
+            }
+            return idClient;
+        }
+
+        private static int SelectionnerCuisinier()
+        {
+            Console.Write("Entrez l'ID du cuisinier : ");
+            if (!int.TryParse(Console.ReadLine(), out int idCuisinier))
+            {
+                Console.WriteLine("ID invalide.");
+                return -1;
+            }
+            return idCuisinier;
+        }
     }
 }
