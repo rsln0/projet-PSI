@@ -36,7 +36,8 @@ namespace LivInParisApp
                     Console.WriteLine("2. Module Cuisinier");
                     Console.WriteLine("3. Module Commande");
                     Console.WriteLine("4. Module Trajet (Interface Graphique)");
-                    Console.WriteLine("5. Quitter");
+                    Console.WriteLine("5. Exporter la base de données");
+                    Console.WriteLine("6. Quitter");
                     Console.Write("Votre choix : ");
 
                     string choice = Console.ReadLine();
@@ -57,6 +58,9 @@ namespace LivInParisApp
                             ModuleTrajet();
                             break;
                         case "5":
+                            ExportDatabase();
+                            break;
+                        case "6":
                             exit = true;
                             break;
                         default:
@@ -1342,5 +1346,106 @@ namespace LivInParisApp
             }
             return idCuisinier;
         }
+
+        #region Exportation de la base de données
+        // Exportation de toutes les tables de la base de données LivInParis
+        private static string ExportDatabase()
+        {
+            try
+            {
+                // Dictionnaire pour stocker toutes les données de la base
+                Dictionary<string, List<Dictionary<string, object>>> database = new Dictionary<string, List<Dictionary<string, object>>>();
+
+                // Liste des tables à exporter
+                string[] tables = { "Client", "Cuisinier", "Plat", "Commande", "Details_Commande" };
+
+                foreach (string table in tables)
+                {
+                    // Récupérer le schéma de la table pour connaître toutes les colonnes
+                    DataTable schema = new DataTable();
+                    MySqlCommand schemaCmd = new MySqlCommand($"SELECT * FROM {table} LIMIT 0", connection);
+                    using (MySqlDataAdapter adapter = new MySqlDataAdapter(schemaCmd))
+                    {
+                        adapter.Fill(schema);
+                    }
+
+                    // Construire dynamiquement une requête SQL basée sur les colonnes existantes
+                    List<string> colonnesExistantes = new List<string>();
+                    foreach (DataColumn colonne in schema.Columns)
+                    {
+                        colonnesExistantes.Add(colonne.ColumnName);
+                    }
+                    string colonnes = string.Join(", ", colonnesExistantes);
+                    string query = $"SELECT {colonnes} FROM {table}";
+
+                    // Exécuter la requête et récupérer les données
+                    List<Dictionary<string, object>> rows = new List<Dictionary<string, object>>();
+                    MySqlCommand cmd = new MySqlCommand(query, connection);
+                    using (MySqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            Dictionary<string, object> row = new Dictionary<string, object>();
+                            // Ajouter toutes les colonnes disponibles au dictionnaire
+                            foreach (string colonne in colonnesExistantes)
+                            {
+                                // Vérifier si la valeur est DBNull avant de l'ajouter
+                                row[colonne] = reader[colonne] != DBNull.Value ? reader[colonne] : null;
+                            }
+                            rows.Add(row);
+                        }
+                    }
+
+                    // Ajouter les données de cette table au dictionnaire de la base de données
+                    database.Add(table, rows);
+                }
+
+                Console.Write("Exporter en JSON (1) ou en XML (2) : ");
+                string formatChoice = Console.ReadLine();
+                string filePath = "";
+
+                if (formatChoice == "1")
+                {
+                    filePath = Path.GetFullPath("livinparis_database.json");
+                    string json = JsonSerializer.Serialize(database, new JsonSerializerOptions { WriteIndented = true });
+                    File.WriteAllText(filePath, json);
+                    Console.WriteLine("Exportation en JSON réussie : " + filePath);
+                }
+                else if (formatChoice == "2")
+                {
+                    filePath = Path.GetFullPath("livinparis_database.xml");
+
+                    // Pour XML, nous devons structurer les données différemment
+                    var databaseForXml = new Dictionary<string, object>();
+                    foreach (var tableEntry in database)
+                    {
+                        databaseForXml[tableEntry.Key] = tableEntry.Value.Select(dict =>
+                            new Dictionary<string, string>(dict.ToDictionary(kv => kv.Key, kv => kv.Value?.ToString() ?? ""))
+                        ).ToList();
+                    }
+
+                    XmlSerializer xmlSerializer = new XmlSerializer(typeof(Dictionary<string, object>), new XmlRootAttribute("Database"));
+                    using (StreamWriter writer = new StreamWriter(filePath))
+                    {
+                        xmlSerializer.Serialize(writer, databaseForXml);
+                    }
+                    Console.WriteLine("Exportation en XML réussie : " + filePath);
+                }
+                else
+                {
+                    Console.WriteLine("Format invalide. Annulation de l'exportation.");
+                    return "Exportation annulée : format invalide sélectionné.";
+                }
+
+                // Retourner le chemin d'accès au fichier
+                return $"La base de données a été exportée avec succès à l'emplacement : {filePath}";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur lors de l'exportation : {ex.Message}");
+                return $"Erreur lors de l'exportation : {ex.Message}";
+            }
+        }
+        #endregion
     }
 }
