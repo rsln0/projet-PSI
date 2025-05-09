@@ -1,580 +1,1486 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
+using System.Data;
+using System.IO;
 using System.Linq;
+using System.Xml.Linq; /// Utilisé pour créer et manipuler des documents XML
+using MySql.Data.MySqlClient; /// Bibliothèque pour interagir avec une base de données MySQL
+using System.Text.Json; /// Pour la sérialisation en JSON
+using System.Xml.Serialization; /// Pour la sérialisation en XML
+using System.Windows.Forms; /// Pour l'utilisation des formulaires Windows
+using PSI; /// Pour accéder à l'interface graphique Metro_GUI
 
 namespace LivInParisApp
 {
-    public class Graphe<T>
+    class Program
     {
-        private Dictionary<int, double> _tempsChangementMapping = new Dictionary<int, double>();
-        /// Dictionnaire pour stocker les stations uniques par nom
-        private Dictionary<string, Noeud<T>> _stationsUniques = new Dictionary<string, Noeud<T>>();
+        /// Chaîne de connexion utilisée pour accéder à la base de données LivInParis
+        private static string connectionString = "Server=localhost;Database=LivInParis;Uid=root;Pwd=zigwy2306;";
+        private static MySqlConnection connection;
 
-        public List<Noeud<T>> Noeuds { get; private set; }
-        public bool EstOriente { get; private set; }
-
-        /// Dictionnaire pour suivre les lignes par station
-        private Dictionary<string, HashSet<string>> _lignesParStation = new Dictionary<string, HashSet<string>>();
-
-        public Graphe(bool estOriente = true)
+        static void Main(string[] args)
         {
-            Noeuds = new List<Noeud<T>>();
-            EstOriente = estOriente;
-        }
-
-        public void AjouterNoeud(Noeud<T> noeud)
-        {
-            if (!Noeuds.Contains(noeud))
-            {
-                Noeuds.Add(noeud);
-            }
-        }
-
-        public void AfficherGraphe()
-        {
-            Console.WriteLine("Contenu du graphe :");
-
-            /// Trier les nœuds par ID pour l'affichage
-            var noeudsTriesParId = Noeuds.OrderBy(n => n.LigneMetro).ToList();
-
-            foreach (var noeud in noeudsTriesParId)
-            {
-                /// Afficher toutes les lignes associées à la station
-                string lignes = GetLignesForStation(noeud.Nom);
-                Console.WriteLine($"Station: {noeud.Nom} (Lignes: {lignes})");
-
-                /// Trier les voisins par ID également
-                var voisinsTriesParId = noeud.Voisins.OrderBy(v => v.Key.LigneMetro).ToList();
-
-                foreach (var voisin in voisinsTriesParId)
-                {
-                    string typeConnection = "Liaison";
-                    if (_lignesParStation.ContainsKey(noeud.Nom) && _lignesParStation.ContainsKey(voisin.Key.Nom))
-                    {
-                        /// Vérifier si les stations partagent une ligne commune
-                        bool partageLigne = _lignesParStation[noeud.Nom].Intersect(_lignesParStation[voisin.Key.Nom]).Any();
-                        typeConnection = partageLigne ? "Même ligne" : "Correspondance";
-                    }
-                    Console.WriteLine($"  -> Voisin: {voisin.Key.Nom}, Temps: {voisin.Value} min, Type: {typeConnection}");
-                }
-
-                Console.WriteLine(); /// Ligne vide pour améliorer la lisibilité
-            }
-        }
-
-        private string GetLignesForStation(string nomStation)
-        {
-            if (_lignesParStation.ContainsKey(nomStation))
-            {
-                return string.Join(", ", _lignesParStation[nomStation]);
-            }
-            return string.Empty;
-        }
-
-        public void ChargerDonneesCSV(string cheminFichier)
-        {
+            /// Active les styles visuels par défaut pour une meilleure apparence des formulaires
+            Application.EnableVisualStyles();
+            /// Détermine la méthode de rendu du texte ; false permet d'utiliser GDI+ au lieu de GDI
+            Application.SetCompatibleTextRenderingDefault(false);
             try
             {
-                string[] lignes = System.IO.File.ReadAllLines(cheminFichier);
-                bool premiereLigne = true;
-                Dictionary<int, int> idVersIdUnique = new Dictionary<int, int>();
-                Dictionary<int, string> idVersNom = new Dictionary<int, string>();
-                Dictionary<int, string> idVersLigne = new Dictionary<int, string>();
-                _tempsChangementMapping.Clear();
-                _stationsUniques.Clear();
-                _lignesParStation.Clear();
+                /// Création et ouverture de la connexion à MySQL
+                connection = new MySqlConnection(connectionString);
+                connection.Open();
+                Console.WriteLine("Connexion réussie à la base de données LivInParis");
 
-                /// Première passe : créer les nœuds uniques par nom de station
-                foreach (string ligne in lignes)
+                /// Menu principal
+                bool exit = false;
+                while (!exit)
                 {
-                    if (premiereLigne)
+                    Console.Clear();
+                    Console.WriteLine("===== Liv'In Paris - Système de partage de repas =====");
+                    Console.WriteLine("1. Module Client");
+                    Console.WriteLine("2. Module Cuisinier");
+                    Console.WriteLine("3. Module Commande");
+                    Console.WriteLine("4. Module Trajet (Interface Graphique)");
+                    Console.WriteLine("5. Exporter la base de données");
+                    Console.WriteLine("6. Quitter");
+                    Console.Write("Votre choix : ");
+
+                    string choice = Console.ReadLine();
+                    Console.WriteLine();
+
+                    switch (choice)
                     {
-                        premiereLigne = false;
-                        continue; /// Ignorer l'en-tête
+                        case "1":
+                            ModuleClient();
+                            break;
+                        case "2":
+                            ModuleCuisinier();
+                            break;
+                        case "3":
+                            ModuleCommande();
+                            break;
+                        case "4":
+                            ModuleTrajet();
+                            break;
+                        case "5":
+                            ExportDatabase();
+                            break;
+                        case "6":
+                            exit = true;
+                            break;
+                        default:
+                            Console.WriteLine("Option invalide. Veuillez réessayer.");
+                            break;
                     }
-
-                    string[] donnees = ligne.Split(';');
-                    if (donnees.Length >= 6)
+                    if (!exit)
                     {
-                        int idStation = int.Parse(donnees[0]);
-                        string nomStation = donnees[1];
-                        string ligneMetro = donnees[2].Trim();
-                        double tempsChangement = double.Parse(donnees[5], CultureInfo.InvariantCulture);
-
-                        /// Enregistrer l'ID, le nom et la ligne pour une utilisation ultérieure
-                        idVersNom[idStation] = nomStation;
-                        idVersLigne[idStation] = ligneMetro;
-                        _tempsChangementMapping[idStation] = tempsChangement;
-
-                        /// Ajouter la ligne à la collection de lignes pour cette station
-                        if (!_lignesParStation.ContainsKey(nomStation))
-                        {
-                            _lignesParStation[nomStation] = new HashSet<string>();
-                        }
-                        _lignesParStation[nomStation].Add(ligneMetro);
-
-                        /// Créer ou récupérer le nœud unique pour cette station
-                        if (!_stationsUniques.ContainsKey(nomStation))
-                        {
-                            /// Pour le premier nœud d'une station, utiliser sa ligne comme ligne principale
-                            Noeud<T> nouveauNoeud = new Noeud<T>(default(T), nomStation, 0, 0, ligneMetro);
-                            _stationsUniques.Add(nomStation, nouveauNoeud);
-                            AjouterNoeud(nouveauNoeud);
-                        }
-
-                        /// Associer l'ID original au nœud unique
-                        idVersIdUnique[idStation] = 0; /// Valeur provisoire, on utilisera le nom comme clé unique
+                        Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+                        Console.ReadKey();
                     }
                 }
 
-                /// Deuxième passe : créer les connexions entre les stations
-                premiereLigne = true;
-                foreach (string ligne in lignes)
-                {
-                    if (premiereLigne)
-                    {
-                        premiereLigne = false;
-                        continue;
-                    }
-
-                    string[] donnees = ligne.Split(';');
-                    if (donnees.Length >= 6)
-                    {
-                        int idStation = int.Parse(donnees[0]);
-                        int? idPrecedent = string.IsNullOrEmpty(donnees[3]) ? (int?)null : int.Parse(donnees[3]);
-                        int? idSuivant = string.IsNullOrEmpty(donnees[4]) ? (int?)null : int.Parse(donnees[4]);
-                        double tempsEntreStations = double.Parse(donnees[4], CultureInfo.InvariantCulture);
-
-                        string nomStationActuelle = idVersNom[idStation];
-                        string ligneStationActuelle = idVersLigne[idStation];
-                        Noeud<T> stationActuelle = _stationsUniques[nomStationActuelle];
-
-                        /// Ajouter le lien vers la station précédente si elle existe
-                        if (idPrecedent.HasValue && tempsEntreStations > 0)
-                        {
-                            if (idVersNom.ContainsKey(idPrecedent.Value))
-                            {
-                                string nomStationPrecedente = idVersNom[idPrecedent.Value];
-                                Noeud<T> stationPrecedente = _stationsUniques[nomStationPrecedente];
-
-                                /// Vérifier si les stations sont sur la même ligne
-                                string ligneStationPrecedente = idVersLigne[idPrecedent.Value];
-                                bool memeLigne = ligneStationActuelle == ligneStationPrecedente;
-
-                                /// Ajouter le lien avec le temps approprié
-                                AjouterLien(stationActuelle, stationPrecedente, tempsEntreStations);
-                            }
-                        }
-
-                        /// Ajouter le lien vers la station suivante si elle existe
-                        if (idSuivant.HasValue && tempsEntreStations > 0)
-                        {
-                            if (idVersNom.ContainsKey(idSuivant.Value))
-                            {
-                                string nomStationSuivante = idVersNom[idSuivant.Value];
-                                Noeud<T> stationSuivante = _stationsUniques[nomStationSuivante];
-
-                                /// Vérifier si les stations sont sur la même ligne
-                                string ligneStationSuivante = idVersLigne[idSuivant.Value];
-                                bool memeLigne = ligneStationActuelle == ligneStationSuivante;
-
-                                /// Ajouter le lien avec le temps approprié
-                                AjouterLien(stationActuelle, stationSuivante, tempsEntreStations);
-                            }
-                        }
-                    }
-                }
-
-                /// On n'a plus besoin de créer explicitement les correspondances entre stations de même nom
-                /// car nous avons maintenant une seule instance par station
-
-                Console.WriteLine($"Chargement terminé. {_stationsUniques.Count} stations uniques créées avec leurs connexions.");
+                /// Fermeture de la connexion lorsqu'on quitte l'application
+                connection.Close();
+                Console.WriteLine("Au revoir !");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Erreur lors du chargement des données CSV: {ex.Message}");
-                Console.WriteLine(ex.StackTrace);
+                Console.WriteLine($"Erreur : {ex.Message}");
             }
         }
 
-        public void ChargerCorrespondances()
+        #region Module Client
+        private static void ModuleClient()
         {
-            try
+            bool retour = false;
+            while (!retour)
             {
-                /// Cette méthode est maintenant simplifiée car nous avons déjà des stations uniques.
-                /// Il suffit d'assurer que les connexions entre stations de différentes lignes
-                /// aient le bon temps de correspondance.
-                int correspondancesCreees = 0;
+                Console.Clear();
+                Console.WriteLine("===== MODULE CLIENT =====");
+                Console.WriteLine("1. Ajouter un client");
+                Console.WriteLine("2. Modifier un client");
+                Console.WriteLine("3. Supprimer un client");
+                Console.WriteLine("4. Afficher tous les clients");
+                Console.WriteLine("5. Afficher les clients par rue");
+                Console.WriteLine("6. Retour au menu principal");
+                Console.Write("Votre choix : ");
 
-                /// Pour chaque station avec plusieurs lignes
-                foreach (var paire in _lignesParStation.Where(p => p.Value.Count > 1))
+                string choice = Console.ReadLine();
+                Console.WriteLine();
+
+                switch (choice)
                 {
-                    string nomStation = paire.Key;
-                    var lignes = paire.Value.ToList();
-
-                    if (_stationsUniques.ContainsKey(nomStation))
-                    {
-                        /// Nous n'avons qu'un seul nœud par station maintenant.
-                        /// On vérifie et met à jour les connexions aux voisins.
-                        Noeud<T> station = _stationsUniques[nomStation];
-
-                        foreach (var voisin in station.Voisins.ToList())
-                        {
-                            string nomVoisin = voisin.Key.Nom;
-
-                            /// Une correspondance existe si aucune ligne n'est commune entre les stations
-                            bool estCorrespondance = !_lignesParStation[nomStation]
-                                .Intersect(_lignesParStation[nomVoisin])
-                                .Any();
-
-                            if (estCorrespondance)
-                            {
-                                /// Utiliser le temps de correspondance moyen par défaut
-                                double tempsCorrespondance = 3.0;
-
-                                /// Mettre à jour le temps de la connexion si nécessaire
-                                if (voisin.Value != tempsCorrespondance)
-                                {
-                                    station.AjouterVoisin(voisin.Key, tempsCorrespondance);
-                                    correspondancesCreees++;
-                                }
-                            }
-                        }
-                    }
+                    case "1":
+                        AjouterClient();
+                        break;
+                    case "2":
+                        ModifierClient();
+                        break;
+                    case "3":
+                        SupprimerClient();
+                        break;
+                    case "4":
+                        AfficherClientsParOrdreAlphabetique();
+                        break;
+                    case "5":
+                        AfficherClientsParRue();
+                        break;
+                    case "6":
+                        retour = true;
+                        break;
+                    default:
+                        Console.WriteLine("Option invalide. Veuillez réessayer.");
+                        break;
                 }
 
-                Console.WriteLine($"Total des temps de correspondances mis à jour: {correspondancesCreees}");
+                if (!retour)
+                {
+                    Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+                    Console.ReadKey();
+                }
+            }
+        }
+
+        private static void AjouterClient()
+        {
+            Console.WriteLine("=== Ajout d'un nouveau client ===");
+
+            Console.Write("Nom : ");
+            string nom = Console.ReadLine();
+
+            Console.Write("Prénom : ");
+            string prenom = Console.ReadLine();
+
+            Console.Write("Adresse : ");
+            string adresse = Console.ReadLine();
+
+            Console.Write("Téléphone : ");
+            string telephone = Console.ReadLine();
+
+            Console.Write("Email : ");
+            string email = Console.ReadLine();
+
+            try
+            {
+                /// Exécution d'une commande SQL d'insertion utilisant des paramètres
+                string query = "INSERT INTO Client (nom, prenom, adresse, telephone, email) VALUES (@nom, @prenom, @adresse, @telephone, @email)";
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+                /// La méthode AddWithValue assigne directement la valeur à chaque paramètre de la requête
+                cmd.Parameters.AddWithValue("@nom", nom);
+                cmd.Parameters.AddWithValue("@prenom", prenom);
+                cmd.Parameters.AddWithValue("@adresse", adresse);
+                cmd.Parameters.AddWithValue("@telephone", telephone);
+                cmd.Parameters.AddWithValue("@email", email);
+
+                int rowsAffected = cmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
+                {
+                    Console.WriteLine("Client ajouté avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Erreur lors de l'ajout du client.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1062) /// Code d'erreur pour duplication unique (email déjà utilisé)
+                {
+                    Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Erreur lors de la mise à jour des correspondances: {ex.Message}");
-                Console.WriteLine(ex.StackTrace);
+                Console.WriteLine($"Erreur: {ex.Message}");
             }
         }
 
-        public void AjouterLien(Noeud<T> source, Noeud<T> destination, double poids)
+        private static void ModifierClient()
         {
-            /// Vérifier que les deux noeuds existent dans le graphe
-            if (!Noeuds.Contains(source))
-                Noeuds.Add(source);
+            Console.WriteLine("=== Modification d'un client ===");
 
-            if (!Noeuds.Contains(destination))
-                Noeuds.Add(destination);
-
-            /// Ajouter le lien dans le sens indiqué
-            source.AjouterVoisin(destination, poids);
-
-            /// Pour un graphe non orienté, ajouter aussi le lien inverse
-            if (!EstOriente)
+            Console.Write("Entrez l'ID du client à modifier : ");
+            if (!int.TryParse(Console.ReadLine(), out int idClient))
             {
-                destination.AjouterVoisin(source, poids);
-            }
-        }
-
-        /// Recherche du plus court chemin avec l'algorithme de Dijkstra
-        public List<Noeud<T>> Dijkstra(Noeud<T> source, Noeud<T> destination)
-        {
-            if (!Noeuds.Contains(source) || !Noeuds.Contains(destination))
-                return new List<Noeud<T>>();
-
-            /// Initialisation des distances et prédécesseurs
-            Dictionary<Noeud<T>, double> distances = new Dictionary<Noeud<T>, double>();
-            Dictionary<Noeud<T>, Noeud<T>> predecesseurs = new Dictionary<Noeud<T>, Noeud<T>>();
-            List<Noeud<T>> nonVisites = new List<Noeud<T>>();
-
-            /// Tous les noeuds commencent avec une distance infinie, sauf la source
-            foreach (Noeud<T> noeud in Noeuds)
-            {
-                distances[noeud] = noeud.Equals(source) ? 0 : double.MaxValue;
-                nonVisites.Add(noeud);
-            }
-
-            /// Parcours principal de l'algorithme
-            while (nonVisites.Count > 0)
-            {
-                Noeud<T> noeudActuel = null;
-                double minDistance = double.MaxValue;
-
-                /// Sélection du noeud non visité avec la distance minimale
-                foreach (Noeud<T> noeud in nonVisites)
-                {
-                    if (distances[noeud] < minDistance)
-                    {
-                        minDistance = distances[noeud];
-                        noeudActuel = noeud;
-                    }
-                }
-
-                /// Si aucun noeud n'est trouvé ou si la destination est atteinte, on arrête la recherche
-                if (noeudActuel == null || noeudActuel.Equals(destination))
-                    break;
-
-                /// Marquer le noeud actuel comme visité
-                nonVisites.Remove(noeudActuel);
-
-                /// Mise à jour des distances pour les voisins du noeud actuel
-                foreach (var paire in noeudActuel.Voisins)
-                {
-                    Noeud<T> voisin = paire.Key;
-                    double poids = paire.Value;
-                    double distance = distances[noeudActuel] + poids;
-
-                    /// Si une distance plus courte est trouvée, mise à jour et enregistrement du prédécesseur
-                    if (distance < distances[voisin])
-                    {
-                        distances[voisin] = distance;
-                        predecesseurs[voisin] = noeudActuel;
-                    }
-                }
-            }
-
-            /// Reconstruction du chemin à partir des prédécesseurs
-            List<Noeud<T>> chemin = new List<Noeud<T>>();
-            Noeud<T> noeudCourant = destination;
-            if (predecesseurs.ContainsKey(destination))
-            {
-                while (noeudCourant != null)
-                {
-                    chemin.Insert(0, noeudCourant);
-                    if (noeudCourant.Equals(source))
-                        break;
-                    noeudCourant = predecesseurs.ContainsKey(noeudCourant) ? predecesseurs[noeudCourant] : null;
-                }
-            }
-
-            return chemin;
-        }
-
-        /// Recherche du plus court chemin avec l'algorithme de Bellman-Ford
-        public List<Noeud<T>> BellmanFord(Noeud<T> source, Noeud<T> destination)
-        {
-            if (!Noeuds.Contains(source) || !Noeuds.Contains(destination))
-                return new List<Noeud<T>>();
-
-            /// Initialisation des distances et des prédécesseurs
-            Dictionary<Noeud<T>, double> distances = new Dictionary<Noeud<T>, double>();
-            Dictionary<Noeud<T>, Noeud<T>> predecesseurs = new Dictionary<Noeud<T>, Noeud<T>>();
-
-            /// Distance de départ zéro pour la source, infini pour le reste
-            foreach (Noeud<T> noeud in Noeuds)
-            {
-                distances[noeud] = noeud.Equals(source) ? 0 : double.MaxValue;
-            }
-
-            /// Relaxation : itérer V-1 fois sur tous les arcs
-            for (int i = 0; i < Noeuds.Count - 1; i++)
-            {
-                foreach (Noeud<T> noeud in Noeuds)
-                {
-                    foreach (var paire in noeud.Voisins)
-                    {
-                        Noeud<T> voisin = paire.Key;
-                        double poids = paire.Value;
-
-                        if (distances[noeud] != double.MaxValue && distances[noeud] + poids < distances[voisin])
-                        {
-                            /// Mise à jour de la distance et du prédécesseur
-                            distances[voisin] = distances[noeud] + poids;
-                            predecesseurs[voisin] = noeud;
-                        }
-                    }
-                }
-            }
-
-            /// Vérification d'un cycle de poids négatif
-            foreach (Noeud<T> noeud in Noeuds)
-            {
-                foreach (var paire in noeud.Voisins)
-                {
-                    Noeud<T> voisin = paire.Key;
-                    double poids = paire.Value;
-
-                    if (distances[noeud] != double.MaxValue && distances[noeud] + poids < distances[voisin])
-                    {
-                        Console.WriteLine("Attention: Le graphe contient un cycle de poids négatif.");
-                        return new List<Noeud<T>>();
-                    }
-                }
-            }
-
-            /// Reconstruction du chemin à partir des prédécesseurs
-            List<Noeud<T>> chemin = new List<Noeud<T>>();
-            Noeud<T> noeudCourant = destination;
-            if (predecesseurs.ContainsKey(destination))
-            {
-                while (noeudCourant != null)
-                {
-                    chemin.Insert(0, noeudCourant);
-                    if (noeudCourant.Equals(source))
-                        break;
-                    noeudCourant = predecesseurs.ContainsKey(noeudCourant) ? predecesseurs[noeudCourant] : null;
-                }
-            }
-
-            return chemin;
-        }
-
-        /// Recherche du plus court chemin avec l'algorithme de Floyd-Warshall
-        public List<Noeud<T>> FloydWarshall(Noeud<T> source, Noeud<T> destination)
-        {
-            if (!Noeuds.Contains(source) || !Noeuds.Contains(destination))
-                return new List<Noeud<T>>();
-
-            int n = Noeuds.Count;
-            double[,] dist = new double[n, n];
-            int[,] next = new int[n, n];
-
-            /// Initialisation de la matrice de distances et de la matrice "next"
-            for (int i = 0; i < n; i++)
-            {
-                for (int j = 0; j < n; j++)
-                {
-                    dist[i, j] = double.MaxValue;
-                    next[i, j] = -1;
-                }
-            }
-
-            /// Initialisation des distances directes entre les noeuds et des successeurs immédiats
-            for (int i = 0; i < n; i++)
-            {
-                dist[i, i] = 0;
-                foreach (var paire in Noeuds[i].Voisins)
-                {
-                    int j = Noeuds.IndexOf(paire.Key);
-                    if (j != -1)
-                    {
-                        dist[i, j] = paire.Value;
-                        next[i, j] = j;
-                    }
-                }
-            }
-
-            /// Itération pour trouver les chemins les plus courts entre toutes les paires de noeuds
-            for (int k = 0; k < n; k++)
-            {
-                for (int i = 0; i < n; i++)
-                {
-                    for (int j = 0; j < n; j++)
-                    {
-                        if (dist[i, k] != double.MaxValue && dist[k, j] != double.MaxValue)
-                        {
-                            if (dist[i, j] > dist[i, k] + dist[k, j])
-                            {
-                                /// Mise à jour de la distance et de la matrice "next" pour le chemin
-                                dist[i, j] = dist[i, k] + dist[k, j];
-                                next[i, j] = next[i, k];
-                            }
-                        }
-                    }
-                }
-            }
-
-            /// Reconstruction du chemin de la source à la destination
-            List<Noeud<T>> chemin = new List<Noeud<T>>();
-            int sourceIndex = Noeuds.IndexOf(source);
-            int destIndex = Noeuds.IndexOf(destination);
-
-            /// Si aucun chemin n'existe
-            if (next[sourceIndex, destIndex] == -1)
-                return chemin;
-
-            chemin.Add(source);
-            /// Suivre la chaîne de "next" jusqu'à la destination
-            while (sourceIndex != destIndex)
-            {
-                sourceIndex = next[sourceIndex, destIndex];
-                if (sourceIndex == -1)
-                    return new List<Noeud<T>>();
-                chemin.Add(Noeuds[sourceIndex]);
-            }
-
-            return chemin;
-        }
-
-        /// Comparer les résultats des 3 algorithmes
-        public void ComparerAlgorithmes(Noeud<T> source, Noeud<T> destination)
-        {
-            Console.WriteLine($"Comparaison des algorithmes pour le trajet de {source.Nom} à {destination.Nom}");
-
-            var startDijkstra = DateTime.Now;
-            var cheminDijkstra = Dijkstra(source, destination);
-            var tempsDijkstra = (DateTime.Now - startDijkstra).TotalMilliseconds;
-
-            var startBellman = DateTime.Now;
-            var cheminBellman = BellmanFord(source, destination);
-            var tempsBellman = (DateTime.Now - startBellman).TotalMilliseconds;
-
-            var startFloyd = DateTime.Now;
-            var cheminFloyd = FloydWarshall(source, destination);
-            var tempsFloyd = (DateTime.Now - startFloyd).TotalMilliseconds;
-
-            Console.WriteLine("\nRésultats Dijkstra:");
-            AfficherChemin(cheminDijkstra);
-            Console.WriteLine($"Temps d'exécution: {tempsDijkstra} ms");
-
-            Console.WriteLine("\nRésultats Bellman-Ford:");
-            AfficherChemin(cheminBellman);
-            Console.WriteLine($"Temps d'exécution: {tempsBellman} ms");
-
-            Console.WriteLine("\nRésultats Floyd-Warshall:");
-            AfficherChemin(cheminFloyd);
-            Console.WriteLine($"Temps d'exécution: {tempsFloyd} ms");
-
-            Console.WriteLine("\nComparaison des performances:");
-            Console.WriteLine($"Dijkstra: {tempsDijkstra} ms - Complexité O(E + V log V)");
-            Console.WriteLine($"Bellman-Ford: {tempsBellman} ms - Complexité O(V*E)");
-            Console.WriteLine($"Floyd-Warshall: {tempsFloyd} ms - Complexité O(V^3)");
-
-            Console.WriteLine("\nConculsion:");
-            Console.WriteLine("- Dijkstra est généralement le plus rapide pour les graphes sans poids négatifs.");
-            Console.WriteLine("- Bellman-Ford peut gérer les poids négatifs mais est plus lent que Dijkstra.");
-            Console.WriteLine("- Floyd-Warshall calcule tous les chemins les plus courts entre toutes les paires de sommets, ce qui le rend utile pour des requêtes multiples mais plus lent pour une seule requête.");
-        }
-
-        private void AfficherChemin(List<Noeud<T>> chemin)
-        {
-            if (chemin.Count == 0)
-            {
-                Console.WriteLine("Aucun chemin trouvé.");
+                Console.WriteLine("ID invalide.");
                 return;
             }
 
-            double tempsTotal = 0;
-            Console.WriteLine($"Chemin trouvé ({chemin.Count} stations):");
-
-            for (int i = 0; i < chemin.Count; i++)
+            try
             {
-                /// Afficher la station avec toutes ses lignes associées
-                string lignes = GetLignesForStation(chemin[i].Nom);
-                Console.WriteLine($"{i + 1}. {chemin[i].Nom} (Lignes: {lignes})");
+                /// Vérification de l'existence du client via une requête SQL
+                string checkQuery = "SELECT * FROM Client WHERE id_client = @id";
+                MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
+                checkCmd.Parameters.AddWithValue("@id", idClient);
 
-                if (i < chemin.Count - 1)
+                using (MySqlDataReader reader = checkCmd.ExecuteReader())
                 {
-                    double tempsTroncon = chemin[i].Voisins[chemin[i + 1]];
-                    tempsTotal += tempsTroncon;
-
-                    /// Vérification si le segment entre deux stations est une correspondance
-                    bool estCorrespondance = false;
-                    if (_lignesParStation.ContainsKey(chemin[i].Nom) && _lignesParStation.ContainsKey(chemin[i + 1].Nom))
+                    if (!reader.Read())
                     {
-                        estCorrespondance = !_lignesParStation[chemin[i].Nom]
-                            .Intersect(_lignesParStation[chemin[i + 1].Nom])
-                            .Any();
+                        Console.WriteLine("Client non trouvé.");
+                        return;
+                    }
+                    Console.WriteLine($"Modification du client: {reader["prenom"]} {reader["nom"]}");
+                }
+
+                Console.WriteLine("Entrez les nouvelles informations (laissez vide pour conserver la valeur actuelle):");
+
+                /// Récupération des valeurs courantes du client
+                string currentQuery = "SELECT * FROM Client WHERE id_client = @id";
+                MySqlCommand currentCmd = new MySqlCommand(currentQuery, connection);
+                currentCmd.Parameters.AddWithValue("@id", idClient);
+
+                string currentNom = "", currentPrenom = "", currentAdresse = "", currentTelephone = "", currentEmail = "";
+                using (MySqlDataReader reader = currentCmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        currentNom = reader["nom"].ToString();
+                        currentPrenom = reader["prenom"].ToString();
+                        currentAdresse = reader["adresse"].ToString();
+                        currentTelephone = reader["telephone"].ToString();
+                        currentEmail = reader["email"].ToString();
+                    }
+                }
+
+                Console.Write($"Nom [{currentNom}] : ");
+                string nom = Console.ReadLine();
+                nom = string.IsNullOrWhiteSpace(nom) ? currentNom : nom;
+
+                Console.Write($"Prénom [{currentPrenom}] : ");
+                string prenom = Console.ReadLine();
+                prenom = string.IsNullOrWhiteSpace(prenom) ? currentPrenom : prenom;
+
+                Console.Write($"Adresse [{currentAdresse}] : ");
+                string adresse = Console.ReadLine();
+                adresse = string.IsNullOrWhiteSpace(adresse) ? currentAdresse : adresse;
+
+                Console.Write($"Téléphone [{currentTelephone}] : ");
+                string telephone = Console.ReadLine();
+                telephone = string.IsNullOrWhiteSpace(telephone) ? currentTelephone : telephone;
+
+                Console.Write($"Email [{currentEmail}] : ");
+                string email = Console.ReadLine();
+                email = string.IsNullOrWhiteSpace(email) ? currentEmail : email;
+
+                /// Mise à jour des informations du client dans la base
+                string updateQuery = "UPDATE Client SET nom = @nom, prenom = @prenom, adresse = @adresse, telephone = @telephone, email = @email WHERE id_client = @id";
+                MySqlCommand updateCmd = new MySqlCommand(updateQuery, connection);
+                updateCmd.Parameters.AddWithValue("@nom", nom);
+                updateCmd.Parameters.AddWithValue("@prenom", prenom);
+                updateCmd.Parameters.AddWithValue("@adresse", adresse);
+                updateCmd.Parameters.AddWithValue("@telephone", telephone);
+                updateCmd.Parameters.AddWithValue("@email", email);
+                updateCmd.Parameters.AddWithValue("@id", idClient);
+
+                int rowsAffected = updateCmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
+                {
+                    Console.WriteLine("Client modifié avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Aucune modification n'a été effectuée.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1062)
+                {
+                    Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void SupprimerClient()
+        {
+            Console.WriteLine("=== Suppression d'un client ===");
+
+            Console.Write("Entrez l'ID du client à supprimer : ");
+            if (!int.TryParse(Console.ReadLine(), out int idClient))
+            {
+                Console.WriteLine("ID invalide.");
+                return;
+            }
+
+            try
+            {
+                /// Vérifier que le client existe
+                string checkQuery = "SELECT * FROM Client WHERE id_client = @id";
+                MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
+                checkCmd.Parameters.AddWithValue("@id", idClient);
+
+                using (MySqlDataReader reader = checkCmd.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        Console.WriteLine("Client non trouvé.");
+                        return;
+                    }
+                    Console.WriteLine($"Vous êtes sur le point de supprimer le client: {reader["prenom"]} {reader["nom"]}");
+                }
+
+                Console.Write("Êtes-vous sûr ? (O/N) : ");
+                string confirmation = Console.ReadLine().ToUpper();
+                if (confirmation != "O" && confirmation != "OUI")
+                {
+                    Console.WriteLine("Suppression annulée.");
+                    return;
+                }
+
+                /// Exécution de la suppression dans la table Client
+                string deleteQuery = "DELETE FROM Client WHERE id_client = @id";
+                MySqlCommand deleteCmd = new MySqlCommand(deleteQuery, connection);
+                deleteCmd.Parameters.AddWithValue("@id", idClient);
+
+                int rowsAffected = deleteCmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
+                {
+                    Console.WriteLine("Client supprimé avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Aucun client n'a été supprimé.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1451) /// Code SQL indiquant une contrainte d'intégrité (clé étrangère liée)
+                {
+                    Console.WriteLine("Erreur: Ce client ne peut pas être supprimé car il est lié à des commandes.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherClientsParOrdreAlphabetique()
+        {
+            Console.WriteLine("=== Liste des clients par ordre alphabétique ===");
+
+            try
+            {
+                /// La requête utilise DATE_FORMAT pour formater la date
+                string query = "SELECT id_client, nom, prenom, adresse, telephone, email FROM Client ORDER BY nom, prenom";
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+
+                using (MySqlDataReader reader = cmd.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucun client trouvé.");
+                        return;
                     }
 
-                    if (estCorrespondance)
+                    const int idWidth = 5;
+                    const int nomWidth = 15;
+                    const int prenomWidth = 15;
+                    const int adresseWidth = 30;
+                    const int telWidth = 15;
+                    const int emailWidth = 30;
+
+                    Console.WriteLine($"{"ID".PadRight(idWidth)}{"Nom".PadRight(nomWidth)}{"Prénom".PadRight(prenomWidth)}{"Adresse".PadRight(adresseWidth)}{"Téléphone".PadRight(telWidth)}{"Email".PadRight(emailWidth)}");
+                    Console.WriteLine(new string('-', idWidth + nomWidth + prenomWidth + adresseWidth + telWidth + emailWidth));
+
+                    while (reader.Read())
                     {
-                        Console.WriteLine($"   Correspondance: entre lignes ({tempsTroncon} min)");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"   → ({tempsTroncon} min)");
+                        string adresse = reader["adresse"].ToString();
+                        if (adresse.Length > adresseWidth - 3)
+                        {
+                            adresse = adresse.Substring(0, adresseWidth - 3) + "...";
+                        }
+                        string email = reader["email"].ToString();
+                        if (email.Length > emailWidth - 3)
+                        {
+                            email = email.Substring(0, emailWidth - 3) + "...";
+                        }
+                        Console.WriteLine(
+                            $"{reader["id_client"].ToString().PadRight(idWidth)}" +
+                            $"{reader["nom"].ToString().PadRight(nomWidth)}" +
+                            $"{reader["prenom"].ToString().PadRight(prenomWidth)}" +
+                            $"{adresse.PadRight(adresseWidth)}" +
+                            $"{reader["telephone"].ToString().PadRight(telWidth)}" +
+                            $"{email}");
                     }
                 }
             }
-
-            Console.WriteLine($"Temps total estimé: {tempsTotal} minutes");
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
         }
+
+        private static void AfficherClientsParRue()
+        {
+            Console.WriteLine("=== Liste des clients par rue ===");
+
+            try
+            {
+                string query = "SELECT id_client, nom, prenom, adresse, telephone, email FROM Client ORDER BY adresse";
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+
+                using (MySqlDataReader reader = cmd.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucun client trouvé.");
+                        return;
+                    }
+
+                    const int idWidth = 5;
+                    const int nomWidth = 15;
+                    const int prenomWidth = 15;
+                    const int adresseWidth = 30;
+                    const int telWidth = 15;
+                    const int emailWidth = 30;
+
+                    Console.WriteLine($"{"ID".PadRight(idWidth)}{"Nom".PadRight(nomWidth)}{"Prénom".PadRight(prenomWidth)}{"Adresse".PadRight(adresseWidth)}{"Téléphone".PadRight(telWidth)}{"Email".PadRight(emailWidth)}");
+                    Console.WriteLine(new string('-', idWidth + nomWidth + prenomWidth + adresseWidth + telWidth + emailWidth));
+
+                    while (reader.Read())
+                    {
+                        string adresse = reader["adresse"].ToString();
+                        if (adresse.Length > adresseWidth - 3)
+                        {
+                            adresse = adresse.Substring(0, adresseWidth - 3) + "...";
+                        }
+                        string email = reader["email"].ToString();
+                        if (email.Length > emailWidth - 3)
+                        {
+                            email = email.Substring(0, emailWidth - 3) + "...";
+                        }
+                        Console.WriteLine(
+                            $"{reader["id_client"].ToString().PadRight(idWidth)}" +
+                            $"{reader["nom"].ToString().PadRight(nomWidth)}" +
+                            $"{reader["prenom"].ToString().PadRight(prenomWidth)}" +
+                            $"{adresse.PadRight(adresseWidth)}" +
+                            $"{reader["telephone"].ToString().PadRight(telWidth)}" +
+                            $"{email}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+        #endregion
+
+        #region Module Cuisinier
+        private static void ModuleCuisinier()
+        {
+            bool retour = false;
+            while (!retour)
+            {
+                Console.Clear();
+                Console.WriteLine("===== MODULE CUISINIER =====");
+                Console.WriteLine("1. Ajouter un cuisinier");
+                Console.WriteLine("2. Modifier un cuisinier");
+                Console.WriteLine("3. Supprimer un cuisinier");
+                Console.WriteLine("4. Retour au menu principal");
+                Console.Write("Votre choix : ");
+
+                string choice = Console.ReadLine();
+                Console.WriteLine();
+
+                switch (choice)
+                {
+                    case "1":
+                        AjouterCuisinier();
+                        break;
+                    case "2":
+                        ModifierCuisinier();
+                        break;
+                    case "3":
+                        SupprimerCuisinier();
+                        break;
+                    case "4":
+                        retour = true;
+                        break;
+                    default:
+                        Console.WriteLine("Option invalide. Veuillez réessayer.");
+                        break;
+                }
+
+                if (!retour)
+                {
+                    Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+                    Console.ReadKey();
+                }
+            }
+        }
+
+        private static void AjouterCuisinier()
+        {
+            Console.WriteLine("=== Ajout d'un nouveau cuisinier ===");
+
+            Console.Write("Nom : ");
+            string nom = Console.ReadLine();
+
+            Console.Write("Prénom : ");
+            string prenom = Console.ReadLine();
+
+            Console.Write("Adresse : ");
+            string adresse = Console.ReadLine();
+
+            Console.Write("Téléphone : ");
+            string telephone = Console.ReadLine();
+
+            Console.Write("Email : ");
+            string email = Console.ReadLine();
+
+            try
+            {
+                /// Insertion d'un nouveau cuisinier dans la table Cuisinier
+                string query = "INSERT INTO Cuisinier (nom, prenom, adresse, telephone, email) VALUES (@nom, @prenom, @adresse, @telephone, @email)";
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+                cmd.Parameters.AddWithValue("@nom", nom);
+                cmd.Parameters.AddWithValue("@prenom", prenom);
+                cmd.Parameters.AddWithValue("@adresse", adresse);
+                cmd.Parameters.AddWithValue("@telephone", telephone);
+                cmd.Parameters.AddWithValue("@email", email);
+
+                int rowsAffected = cmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
+                {
+                    Console.WriteLine("Cuisinier ajouté avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Erreur lors de l'ajout du cuisinier.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1062)
+                {
+                    Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void ModifierCuisinier()
+        {
+            Console.WriteLine("=== Modification d'un cuisinier ===");
+
+            Console.Write("Entrez l'ID du cuisinier à modifier : ");
+            if (!int.TryParse(Console.ReadLine(), out int idCuisinier))
+            {
+                Console.WriteLine("ID invalide.");
+                return;
+            }
+
+            try
+            {
+                string checkQuery = "SELECT * FROM Cuisinier WHERE id_cuisinier = @id";
+                MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
+                checkCmd.Parameters.AddWithValue("@id", idCuisinier);
+
+                using (MySqlDataReader reader = checkCmd.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        Console.WriteLine("Cuisinier non trouvé.");
+                        return;
+                    }
+                    Console.WriteLine($"Modification du cuisinier: {reader["prenom"]} {reader["nom"]}");
+                }
+
+                Console.WriteLine("Entrez les nouvelles informations (laissez vide pour conserver la valeur actuelle):");
+
+                string currentQuery = "SELECT * FROM Cuisinier WHERE id_cuisinier = @id";
+                MySqlCommand currentCmd = new MySqlCommand(currentQuery, connection);
+                currentCmd.Parameters.AddWithValue("@id", idCuisinier);
+
+                string currentNom = "", currentPrenom = "", currentAdresse = "", currentTelephone = "", currentEmail = "";
+                using (MySqlDataReader reader = currentCmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        currentNom = reader["nom"].ToString();
+                        currentPrenom = reader["prenom"].ToString();
+                        currentAdresse = reader["adresse"].ToString();
+                        currentTelephone = reader["telephone"].ToString();
+                        currentEmail = reader["email"].ToString();
+                    }
+                }
+
+                Console.Write($"Nom [{currentNom}] : ");
+                string nom = Console.ReadLine();
+                nom = string.IsNullOrWhiteSpace(nom) ? currentNom : nom;
+
+                Console.Write($"Prénom [{currentPrenom}] : ");
+                string prenom = Console.ReadLine();
+                prenom = string.IsNullOrWhiteSpace(prenom) ? currentPrenom : prenom;
+
+                Console.Write($"Adresse [{currentAdresse}] : ");
+                string adresse = Console.ReadLine();
+                adresse = string.IsNullOrWhiteSpace(adresse) ? currentAdresse : adresse;
+
+                Console.Write($"Téléphone [{currentTelephone}] : ");
+                string telephone = Console.ReadLine();
+                telephone = string.IsNullOrWhiteSpace(telephone) ? currentTelephone : telephone;
+
+                Console.Write($"Email [{currentEmail}] : ");
+                string email = Console.ReadLine();
+                email = string.IsNullOrWhiteSpace(email) ? currentEmail : email;
+
+                string updateQuery = "UPDATE Cuisinier SET nom = @nom, prenom = @prenom, adresse = @adresse, telephone = @telephone, email = @email WHERE id_cuisinier = @id";
+                MySqlCommand updateCmd = new MySqlCommand(updateQuery, connection);
+                updateCmd.Parameters.AddWithValue("@nom", nom);
+                updateCmd.Parameters.AddWithValue("@prenom", prenom);
+                updateCmd.Parameters.AddWithValue("@adresse", adresse);
+                updateCmd.Parameters.AddWithValue("@telephone", telephone);
+                updateCmd.Parameters.AddWithValue("@email", email);
+                updateCmd.Parameters.AddWithValue("@id", idCuisinier);
+
+                int rowsAffected = updateCmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
+                {
+                    Console.WriteLine("Cuisinier modifié avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Aucune modification n'a été effectuée.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1062)
+                {
+                    Console.WriteLine("Erreur: Cette adresse email est déjà utilisée.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void SupprimerCuisinier()
+        {
+            Console.WriteLine("=== Suppression d'un cuisinier ===");
+
+            Console.Write("Entrez l'ID du cuisinier à supprimer : ");
+            if (!int.TryParse(Console.ReadLine(), out int idCuisinier))
+            {
+                Console.WriteLine("ID invalide.");
+                return;
+            }
+
+            try
+            {
+                string checkQuery = "SELECT * FROM Cuisinier WHERE id_cuisinier = @id";
+                MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection);
+                checkCmd.Parameters.AddWithValue("@id", idCuisinier);
+
+                using (MySqlDataReader reader = checkCmd.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        Console.WriteLine("Cuisinier non trouvé.");
+                        return;
+                    }
+                    Console.WriteLine($"Vous êtes sur le point de supprimer le cuisinier: {reader["prenom"]} {reader["nom"]}");
+                }
+
+                Console.Write("Êtes-vous sûr ? (O/N) : ");
+                string confirmation = Console.ReadLine().ToUpper();
+                if (confirmation != "O" && confirmation != "OUI")
+                {
+                    Console.WriteLine("Suppression annulée.");
+                    return;
+                }
+
+                string deleteQuery = "DELETE FROM Cuisinier WHERE id_cuisinier = @id";
+                MySqlCommand deleteCmd = new MySqlCommand(deleteQuery, connection);
+                deleteCmd.Parameters.AddWithValue("@id", idCuisinier);
+
+                int rowsAffected = deleteCmd.ExecuteNonQuery();
+                if (rowsAffected > 0)
+                {
+                    Console.WriteLine("Cuisinier supprimé avec succès !");
+                }
+                else
+                {
+                    Console.WriteLine("Aucun cuisinier n'a été supprimé.");
+                }
+            }
+            catch (MySqlException ex)
+            {
+                if (ex.Number == 1451)
+                {
+                    Console.WriteLine("Erreur: Ce cuisinier ne peut pas être supprimé car il est lié à des commandes ou des plats.");
+                }
+                else
+                {
+                    Console.WriteLine($"Erreur MySQL: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+        #endregion
+
+        #region Module Commande
+        private static void ModuleCommande()
+        {
+            bool retour = false;
+            while (!retour)
+            {
+                Console.Clear();
+                Console.WriteLine("===== MODULE COMMANDE =====");
+                Console.WriteLine("1. Afficher toutes les commandes");
+                Console.WriteLine("2. Afficher les commandes d'un client");
+                Console.WriteLine("3. Afficher les commandes d'un cuisinier");
+                Console.WriteLine("4. Afficher le détail d'une commande");
+                Console.WriteLine("5. Retour au menu principal");
+                Console.Write("Votre choix : ");
+                string choice = Console.ReadLine();
+                Console.WriteLine();
+
+                switch (choice)
+                {
+                    case "1":
+                        AfficherToutesCommandes();
+                        break;
+                    case "2":
+                        AfficherCommandesClient();
+                        break;
+                    case "3":
+                        AfficherCommandesCuisinier();
+                        break;
+                    case "4":
+                        AfficherDetailCommande();
+                        break;
+                    case "5":
+                        retour = true;
+                        break;
+                    default:
+                        Console.WriteLine("Option invalide. Veuillez réessayer.");
+                        break;
+                }
+                if (!retour)
+                {
+                    Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+                    Console.ReadKey();
+                }
+            }
+        }
+
+        private static void AfficherToutesCommandes()
+        {
+            Console.WriteLine("=== Liste de toutes les commandes ===");
+
+            try
+            {
+                /// La requête SQL inclut une sous-requête pour calculer le prix total de la commande
+                string query = @"
+    SELECT c.id_commande, DATE_FORMAT(c.date_commande, '%d/%m/%Y') AS date_formattee, 
+           cl.id_client, CONCAT(cl.prenom, ' ', cl.nom) AS nom_client,
+           cu.id_cuisinier, CONCAT(cu.prenom, ' ', cu.nom) AS nom_cuisinier,
+           (SELECT SUM(p.prix * dc.quantite) 
+            FROM Details_Commande dc 
+            JOIN Plat p ON dc.id_plat = p.id_plat 
+            WHERE dc.id_commande = c.id_commande) AS prix_total_calcule
+    FROM Commande c
+    JOIN Client cl ON c.id_client = cl.id_client
+    JOIN Cuisinier cu ON c.id_cuisinier = cu.id_cuisinier
+    ORDER BY c.date_commande DESC";
+
+                MySqlCommand cmd = new MySqlCommand(query, connection);
+
+                using (MySqlDataReader reader = cmd.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucune commande trouvée.");
+                        return;
+                    }
+
+                    const int idWidth = 5;
+                    const int dateWidth = 12;
+                    const int idClientWidth = 10;
+                    const int clientWidth = 25;
+                    const int cuisinierWidth = 25;
+                    const int prixWidth = 15;
+
+                    Console.WriteLine($"{"ID".PadRight(idWidth)} | {"Date".PadRight(dateWidth)} | {"ID Client".PadRight(idClientWidth)} | {"Client".PadRight(clientWidth)} | {"Cuisinier".PadRight(cuisinierWidth)} | {"Prix total".PadRight(prixWidth)}");
+                    Console.WriteLine(new string('-', idWidth + dateWidth + idClientWidth + clientWidth + cuisinierWidth + prixWidth + 10));
+
+                    while (reader.Read())
+                    {
+                        string id = reader["id_commande"].ToString();
+                        string date = reader["date_formattee"].ToString();
+                        string idClient = reader["id_client"].ToString();
+                        string client = reader["nom_client"].ToString();
+                        string cuisinier = reader["nom_cuisinier"].ToString();
+                        string prix = ((decimal)reader["prix_total_calcule"]).ToString("C");
+
+                        if (client.Length > clientWidth - 3)
+                            client = client.Substring(0, clientWidth - 3) + "...";
+
+                        if (cuisinier.Length > cuisinierWidth - 3)
+                            cuisinier = cuisinier.Substring(0, cuisinierWidth - 3) + "...";
+
+                        Console.WriteLine(
+                            $"{id.PadRight(idWidth)} | " +
+                            $"{date.PadRight(dateWidth)} | " +
+                            $"{idClient.PadRight(idClientWidth)} | " +
+                            $"{client.PadRight(clientWidth)} | " +
+                            $"{cuisinier.PadRight(cuisinierWidth)} | " +
+                            $"{prix}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherCommandesClient()
+        {
+            Console.WriteLine("=== Affichage des commandes d'un client ===");
+
+            int idClient = SelectionnerClient();
+            if (idClient == -1) return;
+
+            try
+            {
+                string queryNomClient = "SELECT CONCAT(prenom, ' ', nom) AS nom_complet FROM Client WHERE id_client = @idClient";
+                MySqlCommand cmdNomClient = new MySqlCommand(queryNomClient, connection);
+                cmdNomClient.Parameters.AddWithValue("@idClient", idClient);
+                string nomClient = (string)cmdNomClient.ExecuteScalar();
+
+                Console.WriteLine($"\n=== Commandes de {nomClient} (ID: {idClient}) ===");
+
+                string queryCommandes = @"
+    SELECT c.id_commande, DATE_FORMAT(c.date_commande, '%d/%m/%Y') AS date_formattee, 
+           CONCAT(cu.prenom, ' ', cu.nom) AS nom_cuisinier,
+           (SELECT SUM(p.prix * dc.quantite) 
+            FROM Details_Commande dc 
+            JOIN Plat p ON dc.id_plat = p.id_plat 
+            WHERE dc.id_commande = c.id_commande) AS prix_total_calcule
+    FROM Commande c
+    JOIN Cuisinier cu ON c.id_cuisinier = cu.id_cuisinier
+    WHERE c.id_client = @idClient
+    ORDER BY c.date_commande DESC";
+
+                MySqlCommand cmdCommandes = new MySqlCommand(queryCommandes, connection);
+                cmdCommandes.Parameters.AddWithValue("@idClient", idClient);
+
+                List<int> commandeIds = new List<int>();
+
+                using (MySqlDataReader reader = cmdCommandes.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucune commande trouvée pour ce client.");
+                        return;
+                    }
+
+                    const int idWidth = 5;
+                    const int dateWidth = 12;
+                    const int cuisinierWidth = 30;
+                    const int prixWidth = 15;
+
+                    Console.WriteLine($"{"ID".PadRight(idWidth)} | {"Date".PadRight(dateWidth)} | {"Cuisinier".PadRight(cuisinierWidth)} | {"Prix total".PadRight(prixWidth)}");
+                    Console.WriteLine(new string('-', idWidth + dateWidth + cuisinierWidth + prixWidth + 6));
+
+                    while (reader.Read())
+                    {
+                        int idCommande = (int)reader["id_commande"];
+                        commandeIds.Add(idCommande);
+
+                        string id = idCommande.ToString();
+                        string date = reader["date_formattee"].ToString();
+                        string cuisinier = reader["nom_cuisinier"].ToString();
+                        string prix = ((decimal)reader["prix_total_calcule"]).ToString("C");
+
+                        if (cuisinier.Length > cuisinierWidth - 3)
+                            cuisinier = cuisinier.Substring(0, cuisinierWidth - 3) + "...";
+
+                        Console.WriteLine(
+                            $"{id.PadRight(idWidth)} | " +
+                            $"{date.PadRight(dateWidth)} | " +
+                            $"{cuisinier.PadRight(cuisinierWidth)} | " +
+                            $"{prix}");
+                    }
+                }
+
+                if (commandeIds.Count > 0)
+                {
+                    Console.Write("\nVoulez-vous voir le détail d'une commande de ce client ? (O/N) : ");
+                    string reponse = Console.ReadLine().ToUpper();
+                    if (reponse == "O" || reponse == "OUI")
+                    {
+                        Console.Write($"Entrez l'ID de la commande à afficher ({string.Join(", ", commandeIds)}) : ");
+                        if (int.TryParse(Console.ReadLine(), out int idCommande) && commandeIds.Contains(idCommande))
+                        {
+                            AfficherDetailCommandeSpecifique(idCommande);
+                        }
+                        else
+                        {
+                            Console.WriteLine("ID de commande invalide ou ne correspond pas à ce client.");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherCommandesCuisinier()
+        {
+            Console.WriteLine("=== Affichage des commandes d'un cuisinier ===");
+
+            int idCuisinier = SelectionnerCuisinier();
+            if (idCuisinier == -1) return;
+
+            try
+            {
+                string queryNomCuisinier = "SELECT CONCAT(prenom, ' ', nom) AS nom_complet FROM Cuisinier WHERE id_cuisinier = @idCuisinier";
+                MySqlCommand cmdNomCuisinier = new MySqlCommand(queryNomCuisinier, connection);
+                cmdNomCuisinier.Parameters.AddWithValue("@idCuisinier", idCuisinier);
+                string nomCuisinier = (string)cmdNomCuisinier.ExecuteScalar();
+
+                Console.WriteLine($"\n=== Commandes préparées par {nomCuisinier} (ID: {idCuisinier}) ===");
+
+                string queryCommandes = @"
+    SELECT c.id_commande, DATE_FORMAT(c.date_commande, '%d/%m/%Y') AS date_formattee, 
+           cl.id_client, CONCAT(cl.prenom, ' ', cl.nom) AS nom_client,
+           (SELECT SUM(p.prix * dc.quantite) 
+            FROM Details_Commande dc 
+            JOIN Plat p ON dc.id_plat = p.id_plat 
+            WHERE dc.id_commande = c.id_commande) AS prix_total_calcule
+    FROM Commande c
+    JOIN Client cl ON c.id_client = cl.id_client
+    WHERE c.id_cuisinier = @idCuisinier
+    ORDER BY c.date_commande DESC";
+
+                MySqlCommand cmdCommandes = new MySqlCommand(queryCommandes, connection);
+                cmdCommandes.Parameters.AddWithValue("@idCuisinier", idCuisinier);
+
+                List<int> commandeIds = new List<int>();
+
+                using (MySqlDataReader reader = cmdCommandes.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucune commande trouvée pour ce cuisinier.");
+                        return;
+                    }
+
+                    const int idWidth = 5;
+                    const int dateWidth = 12;
+                    const int idClientWidth = 10;
+                    const int clientWidth = 30;
+                    const int prixWidth = 15;
+
+                    Console.WriteLine($"{"ID".PadRight(idWidth)} | {"Date".PadRight(dateWidth)} | {"ID Client".PadRight(idClientWidth)} | {"Client".PadRight(clientWidth)} | {"Prix total".PadRight(prixWidth)}");
+                    Console.WriteLine(new string('-', idWidth + dateWidth + idClientWidth + clientWidth + prixWidth + 8));
+
+                    while (reader.Read())
+                    {
+                        int idCommande = (int)reader["id_commande"];
+                        commandeIds.Add(idCommande);
+
+                        string id = idCommande.ToString();
+                        string date = reader["date_formattee"].ToString();
+                        string idClient = reader["id_client"].ToString();
+                        string client = reader["nom_client"].ToString();
+                        string prix = ((decimal)reader["prix_total_calcule"]).ToString("C");
+
+                        if (client.Length > clientWidth - 3)
+                            client = client.Substring(0, clientWidth - 3) + "...";
+
+                        Console.WriteLine(
+                            $"{id.PadRight(idWidth)} | " +
+                            $"{date.PadRight(dateWidth)} | " +
+                            $"{idClient.PadRight(idClientWidth)} | " +
+                            $"{client.PadRight(clientWidth)} | " +
+                            $"{prix}");
+                    }
+                }
+
+                if (commandeIds.Count > 0)
+                {
+                    Console.Write("\nVoulez-vous voir le détail d'une commande de ce cuisinier ? (O/N) : ");
+                    string reponse = Console.ReadLine().ToUpper();
+                    if (reponse == "O" || reponse == "OUI")
+                    {
+                        Console.Write($"Entrez l'ID de la commande à afficher ({string.Join(", ", commandeIds)}) : ");
+                        if (int.TryParse(Console.ReadLine(), out int idCommande) && commandeIds.Contains(idCommande))
+                        {
+                            AfficherDetailCommandeSpecifique(idCommande);
+                        }
+                        else
+                        {
+                            Console.WriteLine("ID de commande invalide ou ne correspond pas à ce cuisinier.");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherDetailCommande()
+        {
+            Console.WriteLine("=== Affichage du détail d'une commande ===");
+
+            Console.Write("Entrez l'ID de la commande : ");
+            if (!int.TryParse(Console.ReadLine(), out int idCommande))
+            {
+                Console.WriteLine("ID invalide.");
+                return;
+            }
+
+            try
+            {
+                string queryCommande = @"
+            SELECT c.id_commande, c.date_commande, c.prix_total, 
+                   cl.id_client, CONCAT(cl.prenom, ' ', cl.nom) AS nom_client,
+                   cl.email AS email_client, cl.telephone AS tel_client,
+                   cu.id_cuisinier, CONCAT(cu.prenom, ' ', cu.nom) AS nom_cuisinier
+            FROM Commande c
+            JOIN Client cl ON c.id_client = cl.id_client
+            JOIN Cuisinier cu ON c.id_cuisinier = cu.id_cuisinier
+            WHERE c.id_commande = @idCommande";
+
+                MySqlCommand cmdCommande = new MySqlCommand(queryCommande, connection);
+                cmdCommande.Parameters.AddWithValue("@idCommande", idCommande);
+
+                using (MySqlDataReader reader = cmdCommande.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        Console.WriteLine("Commande non trouvée.");
+                        return;
+                    }
+
+                    Console.WriteLine("\n=== DÉTAILS DE LA COMMANDE ===");
+                    Console.WriteLine($"Commande #{reader["id_commande"]}");
+                    /// Conversion de la date selon le format français
+                    Console.WriteLine($"Date: {((DateTime)reader["date_commande"]).ToString("dd/MM/yyyy")}");
+                    Console.WriteLine("\n--- Informations client ---");
+                    Console.WriteLine($"Client: {reader["nom_client"]} (ID: {reader["id_client"]})");
+                    Console.WriteLine($"Email: {reader["email_client"]}");
+                    Console.WriteLine($"Téléphone: {reader["tel_client"]}");
+                    Console.WriteLine("\n--- Informations cuisinier ---");
+                    Console.WriteLine($"Cuisinier: {reader["nom_cuisinier"]} (ID: {reader["id_cuisinier"]})");
+                }
+
+                Console.WriteLine("\n--- Plats commandés ---");
+                /// Requête pour obtenir les détails des plats de la commande
+                string queryPlats = @"
+            SELECT p.nom_plat, p.type_plat, dc.quantite, p.prix, 
+                   (p.prix * dc.quantite) AS sous_total
+            FROM Details_Commande dc
+            JOIN Plat p ON dc.id_plat = p.id_plat
+            WHERE dc.id_commande = @idCommande
+            ORDER BY p.type_plat, p.nom_plat";
+
+                MySqlCommand cmdPlats = new MySqlCommand(queryPlats, connection);
+                cmdPlats.Parameters.AddWithValue("@idCommande", idCommande);
+
+                decimal prixTotal = 0;
+                using (MySqlDataReader reader = cmdPlats.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucun plat dans cette commande.");
+                        return;
+                    }
+
+                    const int nomPlatWidth = 30;
+                    const int typePlatWidth = 15;
+                    const int quantiteWidth = 10;
+                    const int prixUnitWidth = 15;
+                    const int sousTotalWidth = 15;
+
+                    Console.WriteLine($"{"Plat".PadRight(nomPlatWidth)} | {"Type".PadRight(typePlatWidth)} | {"Quantité".PadRight(quantiteWidth)} | {"Prix unitaire".PadRight(prixUnitWidth)} | {"Sous-total".PadRight(sousTotalWidth)}");
+                    Console.WriteLine(new string('-', nomPlatWidth + typePlatWidth + quantiteWidth + prixUnitWidth + sousTotalWidth + 8));
+
+                    while (reader.Read())
+                    {
+                        decimal sousTotal = (decimal)reader["sous_total"];
+                        string nomPlat = reader["nom_plat"].ToString();
+                        string typePlat = reader["type_plat"].ToString();
+                        string quantite = reader["quantite"].ToString();
+                        string prixUnit = ((decimal)reader["prix"]).ToString("C");
+                        string sousTotal_str = sousTotal.ToString("C");
+
+                        if (nomPlat.Length > nomPlatWidth - 3)
+                            nomPlat = nomPlat.Substring(0, nomPlatWidth - 3) + "...";
+
+                        Console.WriteLine(
+                            $"{nomPlat.PadRight(nomPlatWidth)} | " +
+                            $"{typePlat.PadRight(typePlatWidth)} | " +
+                            $"{quantite.PadRight(quantiteWidth)} | " +
+                            $"{prixUnit.PadRight(prixUnitWidth)} | " +
+                            $"{sousTotal_str}");
+
+                        prixTotal += sousTotal;
+                    }
+                }
+
+                Console.WriteLine(new string('-', 90));
+                Console.WriteLine($"{"PRIX TOTAL:".PadRight(73)} {prixTotal:C}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+
+        private static void AfficherDetailCommandeSpecifique(int idCommande)
+        {
+            try
+            {
+                string queryCommande = @"
+            SELECT c.id_commande, c.date_commande, c.prix_total, 
+                   cl.id_client, CONCAT(cl.prenom, ' ', cl.nom) AS nom_client,
+                   cl.email AS email_client, cl.telephone AS tel_client,
+                   cu.id_cuisinier, CONCAT(cu.prenom, ' ', cu.nom) AS nom_cuisinier
+            FROM Commande c
+            JOIN Client cl ON c.id_client = cl.id_client
+            JOIN Cuisinier cu ON c.id_cuisinier = cu.id_cuisinier
+            WHERE c.id_commande = @idCommande";
+
+                MySqlCommand cmdCommande = new MySqlCommand(queryCommande, connection);
+                cmdCommande.Parameters.AddWithValue("@idCommande", idCommande);
+
+                using (MySqlDataReader reader = cmdCommande.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        Console.WriteLine("Commande non trouvée.");
+                        return;
+                    }
+
+                    Console.WriteLine("\n=== DÉTAILS DE LA COMMANDE ===");
+                    Console.WriteLine($"Commande #{reader["id_commande"]}");
+                    Console.WriteLine($"Date: {((DateTime)reader["date_commande"]).ToString("dd/MM/yyyy")}");
+                    Console.WriteLine("\n--- Informations client ---");
+                    Console.WriteLine($"Client: {reader["nom_client"]} (ID: {reader["id_client"]})");
+                    Console.WriteLine($"Email: {reader["email_client"]}");
+                    Console.WriteLine($"Téléphone: {reader["tel_client"]}");
+                    Console.WriteLine("\n--- Informations cuisinier ---");
+                    Console.WriteLine($"Cuisinier: {reader["nom_cuisinier"]} (ID: {reader["id_cuisinier"]})");
+                }
+
+                Console.WriteLine("\n--- Plats commandés ---");
+                string queryPlats = @"
+            SELECT p.nom_plat, p.type_plat, dc.quantite, p.prix, 
+                   (p.prix * dc.quantite) AS sous_total
+            FROM Details_Commande dc
+            JOIN Plat p ON dc.id_plat = p.id_plat
+            WHERE dc.id_commande = @idCommande
+            ORDER BY p.type_plat, p.nom_plat";
+
+                MySqlCommand cmdPlats = new MySqlCommand(queryPlats, connection);
+                cmdPlats.Parameters.AddWithValue("@idCommande", idCommande);
+
+                decimal prixTotal = 0;
+                using (MySqlDataReader reader = cmdPlats.ExecuteReader())
+                {
+                    if (!reader.HasRows)
+                    {
+                        Console.WriteLine("Aucun plat dans cette commande.");
+                        return;
+                    }
+
+                    const int nomPlatWidth = 30;
+                    const int typePlatWidth = 15;
+                    const int quantiteWidth = 10;
+                    const int prixUnitWidth = 15;
+                    const int sousTotalWidth = 15;
+
+                    Console.WriteLine($"{"Plat".PadRight(nomPlatWidth)} | {"Type".PadRight(typePlatWidth)} | {"Quantité".PadRight(quantiteWidth)} | {"Prix unitaire".PadRight(prixUnitWidth)} | {"Sous-total".PadRight(sousTotalWidth)}");
+                    Console.WriteLine(new string('-', nomPlatWidth + typePlatWidth + quantiteWidth + prixUnitWidth + sousTotalWidth + 8));
+
+                    while (reader.Read())
+                    {
+                        decimal sousTotal = (decimal)reader["sous_total"];
+                        string nomPlat = reader["nom_plat"].ToString();
+                        string typePlat = reader["type_plat"].ToString();
+                        string quantite = reader["quantite"].ToString();
+                        string prixUnit = ((decimal)reader["prix"]).ToString("C");
+                        string sousTotal_str = sousTotal.ToString("C");
+
+                        if (nomPlat.Length > nomPlatWidth - 3)
+                            nomPlat = nomPlat.Substring(0, nomPlatWidth - 3) + "...";
+
+                        Console.WriteLine(
+                            $"{nomPlat.PadRight(nomPlatWidth)} | " +
+                            $"{typePlat.PadRight(typePlatWidth)} | " +
+                            $"{quantite.PadRight(quantiteWidth)} | " +
+                            $"{prixUnit.PadRight(prixUnitWidth)} | " +
+                            $"{sousTotal_str}");
+
+                        prixTotal += sousTotal;
+                    }
+                }
+
+                Console.WriteLine(new string('-', 90));
+                Console.WriteLine($"{"PRIX TOTAL:".PadRight(73)} {prixTotal:C}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur: {ex.Message}");
+            }
+        }
+        #endregion
+
+        #region Module Trajet
+        private static void ModuleTrajet()
+        {
+            Console.Clear();
+            Console.WriteLine("===== MODULE TRAJET =====");
+
+            try
+            {
+                /// Création d'une instance du graphe non orienté
+                var graphe = new LivInParisApp.Graphe<string>(estOriente: false);
+
+                /// Chemin vers le fichier CSV contenant les arcs (attention à adapter le chemin réel)
+                string cheminFichier = "C:/Users/ruben/OneDrive/Documents/arcs projet PSI.csv"; /// Remplacez par le chemin réel
+                /// La méthode ChargerDonneesCSV lit le fichier et alimente le graphe avec ses données
+                graphe.ChargerDonneesCSV(cheminFichier);
+
+                Console.WriteLine("Choisissez une action :");
+                Console.WriteLine("1. Lancer l'interface graphique (Metro_GUI)");
+                Console.WriteLine("2. Comparer les algorithmes du plus court chemin");
+                Console.Write("Votre choix : ");
+                string subChoice = Console.ReadLine();
+                Console.WriteLine();
+
+                switch (subChoice)
+                {
+                    case "1":
+                        /// Lance l'interface graphique qui permet d'afficher le graphe sous forme de Metro (GUI)
+                        Application.Run(new Metro_GUI());
+                        break;
+                    case "2":
+                        ComparerCheminsAvecInput(graphe);
+                        break;
+                    default:
+                        Console.WriteLine("Option invalide.");
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Erreur dans le module Trajet : " + ex.Message);
+            }
+
+            Console.WriteLine("\nAppuyez sur une touche pour continuer...");
+            Console.ReadKey();
+        }
+
+        private static void ComparerCheminsAvecInput(LivInParisApp.Graphe<string> graphe)
+        {
+            Console.Write("Entrez la station de départ (par défaut 'Porte Maillot') : ");
+            string departInput = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(departInput))
+                departInput = "Porte Maillot";
+
+            Console.Write("Entrez la station d'arrivée (par défaut 'Argentine') : ");
+            string arriveeInput = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(arriveeInput))
+                arriveeInput = "Argentine";
+
+            /// Recherchez dans les noeuds du graphe celui dont le nom correspond à la saisie
+            var source = graphe.Noeuds.FirstOrDefault(n => n.Nom.Equals(departInput, StringComparison.InvariantCultureIgnoreCase));
+            var destination = graphe.Noeuds.FirstOrDefault(n => n.Nom.Equals(arriveeInput, StringComparison.InvariantCultureIgnoreCase));
+
+            if (source != null && destination != null)
+            {
+                /// Compare deux algorithmes différents pour trouver le plus court chemin entre la source et la destination
+                graphe.ComparerAlgorithmes(source, destination);
+            }
+            else
+            {
+                Console.WriteLine("Les stations de départ ou d'arrivée sont introuvables.");
+            }
+        }
+        #endregion
+
+        /// Méthodes auxiliaires pour sélectionner un client ou un cuisinier
+        private static int SelectionnerClient()
+        {
+            Console.Write("Entrez l'ID du client : ");
+            if (!int.TryParse(Console.ReadLine(), out int idClient))
+            {
+                Console.WriteLine("ID invalide.");
+                return -1;
+            }
+            return idClient;
+        }
+
+        private static int SelectionnerCuisinier()
+        {
+            Console.Write("Entrez l'ID du cuisinier : ");
+            if (!int.TryParse(Console.ReadLine(), out int idCuisinier))
+            {
+                Console.WriteLine("ID invalide.");
+                return -1;
+            }
+            return idCuisinier;
+        }
+
+        #region Exportation de la base de données
+        /// Exportation de toutes les tables de la base de données LivInParis
+        private static string ExportDatabase()
+        {
+            try
+            {
+                /// Dictionnaire pour stocker les données de chaque table
+                Dictionary<string, List<Dictionary<string, object>>> database = new Dictionary<string, List<Dictionary<string, object>>>();
+
+                /// Liste des tables à exporter
+                string[] tables = { "Client", "Cuisinier", "Plat", "Commande", "Details_Commande" };
+
+                foreach (string table in tables)
+                {
+                    /// Récupération du schéma de la table via une requête SQL qui n'extrait aucune donnée grâce à "LIMIT 0"
+                    DataTable schema = new DataTable();
+                    MySqlCommand schemaCmd = new MySqlCommand($"SELECT * FROM {table} LIMIT 0", connection);
+                    /// L'utilisation de MySqlDataAdapter permet de remplir un DataTable avec la structure résultante de la requête
+                    using (MySqlDataAdapter adapter = new MySqlDataAdapter(schemaCmd))
+                    {
+                        adapter.Fill(schema);
+                    }
+
+                    /// Construction dynamique d'une requête SQL en fonction du nombre de colonnes existantes dans la table
+                    List<string> colonnesExistantes = new List<string>();
+                    foreach (DataColumn colonne in schema.Columns)
+                    {
+                        colonnesExistantes.Add(colonne.ColumnName);
+                    }
+                    string colonnes = string.Join(", ", colonnesExistantes);
+                    string query = $"SELECT {colonnes} FROM {table}";
+
+                    /// Exécution de la requête et lecture des données
+                    List<Dictionary<string, object>> rows = new List<Dictionary<string, object>>();
+                    MySqlCommand cmd = new MySqlCommand(query, connection);
+                    using (MySqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            Dictionary<string, object> row = new Dictionary<string, object>();
+                            /// Ajout de chaque colonne dans le dictionnaire tout en vérifiant si la valeur est nulle
+                            foreach (string colonne in colonnesExistantes)
+                            {
+                                row[colonne] = reader[colonne] != DBNull.Value ? reader[colonne] : null;
+                            }
+                            rows.Add(row);
+                        }
+                    }
+
+                    /// Ajout des données lues pour la table courante dans le dictionnaire global
+                    database.Add(table, rows);
+                }
+
+                Console.Write("Exporter en JSON (1) ou en XML (2) : ");
+                string formatChoice = Console.ReadLine();
+                string filePath = "";
+
+                if (formatChoice == "1")
+                {
+                    filePath = Path.GetFullPath("livinparis_database.json");
+                    /// Utilisation de JsonSerializer pour convertir l'objet en une chaîne JSON avec une mise en forme indentée
+                    string json = JsonSerializer.Serialize(database, new JsonSerializerOptions { WriteIndented = true });
+                    File.WriteAllText(filePath, json);
+                    Console.WriteLine("Exportation en JSON réussie : " + filePath);
+                }
+                else if (formatChoice == "2")
+                {
+                    filePath = Path.GetFullPath("livinparis_database.xml");
+
+                    /// Utilisation de XDocument pour générer dynamiquement un document XML
+                    XDocument doc = new XDocument();
+                    XElement rootElement = new XElement("Database");
+                    doc.Add(rootElement);
+
+                    /// Parcours de toutes les tables pour créer leur représentation XML
+                    foreach (var tableEntry in database)
+                    {
+                        XElement tableElement = new XElement(tableEntry.Key);
+                        rootElement.Add(tableElement);
+
+                        /// Chaque ligne est ajoutée comme élément enfant "Row"
+                        foreach (var row in tableEntry.Value)
+                        {
+                            XElement rowElement = new XElement("Row");
+                            tableElement.Add(rowElement);
+
+                            /// Chaque colonne de la ligne devient un élément enfant
+                            foreach (var column in row)
+                            {
+                                XElement columnElement = new XElement(column.Key, column.Value?.ToString() ?? string.Empty);
+                                rowElement.Add(columnElement);
+                            }
+                        }
+                    }
+
+                    /// Sauvegarde du document XML dans le fichier spécifié
+                    doc.Save(filePath);
+                    Console.WriteLine("Exportation en XML réussie : " + filePath);
+                }
+                else
+                {
+                    Console.WriteLine("Format invalide. Annulation de l'exportation.");
+                    return "Exportation annulée : format invalide sélectionné.";
+                }
+
+                /// Retourne le chemin du fichier exporté
+                return $"La base de données a été exportée avec succès à l'emplacement : {filePath}";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erreur lors de l'exportation : {ex.Message}");
+                return $"Erreur lors de l'exportation : {ex.Message}";
+            }
+        }
+        #endregion
     }
 }
